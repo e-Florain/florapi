@@ -1,0 +1,32 @@
+summary: "Get Adhérents"
+description: "Récupère les adhérents particuliers."
+produces:
+- "application/json"
+parameters:
+- name: lastname
+  in: query
+  type: string
+  description: lastname
+- name: firstname
+  in: query
+  type: string
+  description: firstname
+- name: account_cyclos
+  in: query
+  type: string
+  description: "'t' or 'f' (true or false)"
+responses:
+  200:
+    description: "Success"
+    schema:
+      type: "object"
+      properties:
+        data:
+          type: "object"
+        status:
+          type: "string"
+        message:
+          type: "string"
+ 
+  400:
+    description: "Same response is for 202, 400"

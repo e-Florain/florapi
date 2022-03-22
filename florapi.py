@@ -15,6 +15,8 @@ import time, signal
 from cherrypy import wsgiserver
 import psycopg2
 import config as cfg
+from flasgger import Swagger, LazyString, LazyJSONEncoder
+from flasgger import swag_from
 
 LOG_HEADER = " [" + __file__ + "] - "
 p = re.compile("\w+(\d)")
@@ -29,6 +31,42 @@ fileHandler.setFormatter(logFormatter)
 webLogger.addHandler(fileHandler)
 
 app = Flask(__name__)
+
+# Create an APISpec
+template = {
+  "swagger": "2.0",
+  "info": {
+    "title": "FlorAPI Swagger",
+    "description": "FlorAPI Swagger",
+    "version": "0.1.1",
+    "contact": {
+      "name": "Le Florain",
+      "url": "https://florain.fr",
+    }
+  },
+  "securityDefinitions": {
+    "Bearer": {
+      "type": "apiKey",
+      "name": "x-api-key",
+      "in": "header",
+      "description": "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\""
+    }
+  },
+  "security": [
+    {
+      "Bearer": [ ]
+    }
+  ]
+
+}
+
+app.config['SWAGGER'] = {
+    'title': 'FlorAPI',
+    'uiversion': 3,
+    "specs_route": "/swagger/"
+}
+swagger = Swagger(app, template= template)
+
 
 def require_appkey(view_function):
     @wraps(view_function)
@@ -48,7 +86,7 @@ def getOdooAdhpros(filters):
     if (connection != None):
         try:
             with connection.cursor() as cursor:
-                sql = "SELECT * from res_partner where is_company='t' and active='t';"
+                sql = "SELECT * from res_partner where is_company='t' and active='t'"
                 for x, y in filters.items():
                     sql += " and "+x+"='"+y+"'"
                 sql += ";"
@@ -69,7 +107,10 @@ def getOdooAdhs(filters):
                 sql = "SELECT * from res_partner where is_company='f' and active='t'"
                 #print(filters)
                 for x, y in filters.items():
-                    sql += " and "+x+"='"+y+"'"
+                    if ((x == "lastname") or (x == "firstname")):
+                        sql += " and upper("+x+") like upper('%"+y+"%')"
+                    else:
+                        sql += " and "+x+"='"+y+"'"
                 sql += ";"
                 #print(sql)
                 cursor.execute(sql)
@@ -102,7 +143,8 @@ def put_user():
     return 'Posted JSON!'
 
 @app.route('/getAdhpros', methods=['GET'])
-#@require_appkey
+@require_appkey
+@swag_from("api/getAdhpros.yml")
 def getAdhpros():
     webLogger.info(LOG_HEADER + '[/getAdhpros] GET')
     filters = request.args.to_dict()
@@ -133,9 +175,11 @@ def getAdhpros():
 
 @app.route('/getAdhs', methods=['GET'])
 @require_appkey
+@swag_from("api/getAdhs.yml")
 def getAdhs():
     webLogger.info(LOG_HEADER + '[/getAdhs] GET')
     filters = request.args.to_dict()
+    #print(filters)
     #print(data['account_cyclos'])
     pgsql_headers = {
         "firstname": "",

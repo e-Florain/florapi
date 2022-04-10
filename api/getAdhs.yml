@@ -11,6 +11,10 @@ parameters:
   in: query
   type: string
   description: firstname
+- name: email
+  in: query
+  type: string
+  description: email
 - name: account_cyclos
   in: query
   type: string

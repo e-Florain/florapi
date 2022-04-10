@@ -72,7 +72,7 @@ def require_appkey(view_function):
     @wraps(view_function)
     # the new, post-decoration function. Note *args and **kwargs here.
     def decorated_function(*args, **kwargs):
-        with open('api.key', 'r') as apikey:
+        with open(os.path.dirname(os.path.abspath(__file__)) + '/api.key', 'r') as apikey:
             key=apikey.read().replace('\n', '')
         #if request.args.get('key') and request.args.get('key') == key:
         if request.headers.get('x-api-key') and request.headers.get('x-api-key') == key:
@@ -88,7 +88,10 @@ def getOdooAdhpros(filters):
             with connection.cursor() as cursor:
                 sql = "SELECT * from res_partner where is_company='t' and active='t'"
                 for x, y in filters.items():
-                    sql += " and "+x+"='"+y+"'"
+                    if ((x == "name") or (x == "email")):
+                        sql += " and upper("+x+") like upper('%"+y+"%')"
+                    else:
+                        sql += " and "+x+"='"+y+"'"
                 sql += ";"
                 cursor.execute(sql)
                 resultsSQL = cursor.fetchall()
@@ -107,7 +110,7 @@ def getOdooAdhs(filters):
                 sql = "SELECT * from res_partner where is_company='f' and active='t'"
                 #print(filters)
                 for x, y in filters.items():
-                    if ((x == "lastname") or (x == "firstname")):
+                    if ((x == "lastname") or (x == "firstname") or (x == "email")):
                         sql += " and upper("+x+") like upper('%"+y+"%')"
                     else:
                         sql += " and "+x+"='"+y+"'"

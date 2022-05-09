@@ -130,7 +130,7 @@ def getOdooAssos(filters):
     if (connection != None):
         try:
             with connection.cursor() as cursor:
-                sql = "SELECT * from res_partner where is_company='t' and active='t' and is_organization='t'"
+                sql = "SELECT * from res_partner where is_company='t' and active='t' and is_organization='t' order by name"
                 #print(filters)
                 for x, y in filters.items():
                     if ((x == "name") or (x == "email")):

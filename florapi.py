@@ -125,6 +125,29 @@ def getOdooAdhs(filters):
         finally:
             connection.close()
 
+def getOdooAssos(filters):
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * from res_partner where is_company='t' and active='t' and is_organization='t'"
+                #print(filters)
+                for x, y in filters.items():
+                    if ((x == "name") or (x == "email")):
+                        sql += " and upper("+x+") like upper('%"+y+"%')"
+                    else:
+                        sql += " and "+x+"='"+y+"'"
+                sql += ";"
+                #print(sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+
+                cursor.execute("SELECT * from res_partner LIMIT 0")
+                colnames = [desc[0] for desc in cursor.description]
+                return (colnames, resultsSQL)
+        finally:
+            connection.close()
+
 def connect():
     """ Connect to the PostgreSQL database server """
     conn = None
@@ -206,6 +229,39 @@ def getAdhs():
             adhs_dict[x] = adh[y]
         list_adhs.append(adhs_dict)
     return jsonify(list_adhs)
+
+@app.route('/getAssos', methods=['GET'])
+@require_appkey
+@swag_from("api/getAssos.yml")
+def getAssos():
+    webLogger.info(LOG_HEADER + '[/getAssos] GET')
+    filters = request.args.to_dict()
+    #print(filters)
+    #print(data['account_cyclos'])
+    pgsql_headers = {
+        "name": "",
+        "street": "",
+        "zip": "",
+        "city": "",
+        "email": "",
+        "phone": "",
+        "membership_state": "",
+        "account_cyclos": ""
+    }
+    list_assos = []
+    (cols, assos) = getOdooAssos(filters)
+    i = 0
+    for col in cols:
+        for header in pgsql_headers:
+            if (col == header):
+                pgsql_headers[header] = i
+        i+=1
+    for asso in assos:
+        assos_dict = {}
+        for x, y in pgsql_headers.items():
+            assos_dict[x] = asso[y]
+        list_assos.append(assos_dict)
+    return jsonify(list_assos)
 
 d = wsgiserver.WSGIPathInfoDispatcher({'/': app})
 server = wsgiserver.CherryPyWSGIServer(('0.0.0.0', 80), d)

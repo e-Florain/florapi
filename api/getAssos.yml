@@ -1,0 +1,28 @@
+summary: "Get Assos"
+description: "Récupère les associations."
+produces:
+- "application/json"
+parameters:
+- name: name
+  in: query
+  type: string
+  description: name
+- name: account_cyclos
+  in: query
+  type: string
+  description: "'t' or 'f' (true or false)"
+responses:
+  200:
+    description: "Success"
+    schema:
+      type: "object"
+      properties:
+        data:
+          type: "object"
+        status:
+          type: "string"
+        message:
+          type: "string"
+ 
+  400:
+    description: "Same response is for 202, 400"

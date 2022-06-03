@@ -19,6 +19,10 @@ parameters:
   in: query
   type: string
   description: "'t' or 'f' (true or false)"
+- name: currency_exchange_office
+  in: query
+  type: string
+  description: "'t' or 'f' (true or false)"
 responses:
   200:
     description: "Success"

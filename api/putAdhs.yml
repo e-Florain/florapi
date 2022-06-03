@@ -1,0 +1,33 @@
+summary: "Put Adhérents"
+description: "Modifie un adhérent particulier."
+produces:
+- "application/json"
+parameters:
+- name: email
+  in: query
+  type: string
+  description: email
+  required: true
+- in: "body"
+  name: "body"
+  description: "Updated user object"
+  examples:
+    jsonObject:
+      summary: A sample object
+      externalValue: 'putAdhs.json'
+  required: true
+responses:
+  200:
+    description: "Success"
+    schema:
+      type: "object"
+      properties:
+        data:
+          type: "object"
+        status:
+          type: "string"
+        message:
+          type: "string"
+ 
+  400:
+    description: "Same response is for 202, 400"

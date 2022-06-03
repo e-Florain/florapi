@@ -6,11 +6,13 @@ import os
 import json
 import re
 import time
+from datetime import datetime
 from functools import wraps
 from logging.handlers import RotatingFileHandler
 import threading  # launch server in a thread
 import requests  # make http request to shutdown web server
 from flask import Flask, request, redirect, url_for, render_template, abort, jsonify
+from flask_restful import Api, Resource, reqparse
 import time, signal
 from cherrypy import wsgiserver
 import psycopg2
@@ -148,6 +150,43 @@ def getOdooAssos(filters):
         finally:
             connection.close()
 
+def postOdooAdhs(email, infos):
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
+                now = datetime.now()
+                dt_string = now.strftime("%d/%m/%Y %H:%M:%S.%f")
+                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '4000', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+dt_string+"');"
+                # select name,ref,phone,email from res_partner where is_company='f';
+                print (sql)
+                cursor.execute(sql)
+                connection.commit()
+        finally:
+            connection.close()
+
+def putOdooAdhs(email, infos):
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                if infos is not None:
+                    sql = "UPDATE res_partner SET "
+                    i=1
+                    for key in infos:
+                        if (i < len(infos)):
+                            sql += key+"='"+infos[key]+"'," 
+                        else:
+                            sql += key+"='"+infos[key]+"' "
+                        i=i+1
+                    sql += "WHERE email='"+email+"';"
+                    #print(sql)
+                    cursor.execute(sql)
+                    connection.commit()
+        finally:
+            connection.close()
+
 def connect():
     """ Connect to the PostgreSQL database server """
     conn = None
@@ -210,9 +249,15 @@ def getAdhs():
     pgsql_headers = {
         "firstname": "",
         "lastname": "",
+        "street": "",
+        "zip": "",
+        "city": "",
         "ref": "",
         "email": "",
+        "phone": "",
         "membership_state": "",
+        "membership_start": "",
+        "membership_stop": "",
         "account_cyclos": ""
     }
     list_adhs = []
@@ -239,6 +284,7 @@ def getAssos():
     #print(filters)
     #print(data['account_cyclos'])
     pgsql_headers = {
+        "id": "",
         "name": "",
         "street": "",
         "zip": "",
@@ -262,6 +308,35 @@ def getAssos():
             assos_dict[x] = asso[y]
         list_assos.append(assos_dict)
     return jsonify(list_assos)
+
+@app.route('/postAdhs', methods=['POST'])
+@require_appkey
+@swag_from("api/postAdhs.yml")
+def postAdhs():
+    webLogger.info(LOG_HEADER + '[/postAdhs] POST')
+    required_args = {
+        "firstname",
+        "lastname",
+        "phone"
+    }
+    json_data = request.get_json(force=True)
+    for arg in required_args:
+        if arg not in json_data['infos']:
+            webLogger.error(LOG_HEADER + '[/postAdhs] expected data not found : '+arg)
+            return "404"
+    postOdooAdhs(json_data['email'], json_data['infos'])
+    #infos = request.args.to_dict()
+    #print(infos)
+    return "200"
+
+@app.route('/putAdhs', methods=['POST'])
+@require_appkey
+@swag_from("api/putAdhs.yml")
+def putAdhs():
+    webLogger.info(LOG_HEADER + '[/putAdhs] POST')
+    json_data = request.get_json(force=True)
+    putOdooAdhs(json_data['email'], json_data['infos'])
+    return "200"
 
 d = wsgiserver.WSGIPathInfoDispatcher({'/': app})
 server = wsgiserver.CherryPyWSGIServer(('0.0.0.0', 80), d)

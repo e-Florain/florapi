@@ -220,6 +220,7 @@ def getAdhpros():
         "city": "",
         "email": "",
         "phone": "",
+        "detailed_activity": "",
         "membership_state": "",
         "account_cyclos": ""
     }
@@ -291,6 +292,7 @@ def getAssos():
         "city": "",
         "email": "",
         "phone": "",
+        "detailed_activity": "",
         "membership_state": "",
         "account_cyclos": ""
     }

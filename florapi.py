@@ -150,6 +150,29 @@ def getOdooAssos(filters):
         finally:
             connection.close()
 
+def getFreeOdooRef():
+    connection = connect()
+    firstRef = 4000
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT ref from res_partner where is_company='f' and active='t' order by ref;"
+                cursor.execute(sql)
+                ids = []
+                resultsSQL = cursor.fetchall()
+                for id in resultsSQL:
+                    ids.append(id[0])
+                found=False
+                ref = firstRef
+                while found == False:
+                    if (str(ref) not in ids):
+                        found = True
+                    else:
+                        ref=ref+1
+                return ref
+        finally:
+            connection.close()
+
 def postOdooAdhs(email, infos):
     connection = connect()
     if (connection != None):
@@ -310,6 +333,14 @@ def getAssos():
             assos_dict[x] = asso[y]
         list_assos.append(assos_dict)
     return jsonify(list_assos)
+
+@app.route('/getFreeRef', methods=['GET'])
+@require_appkey
+@swag_from("api/getFreeRef.yml")
+def getFreeRef():
+    webLogger.info(LOG_HEADER + '[/getFreeRef] GET')
+    ref = getFreeOdooRef()
+    return jsonify(ref)
 
 @app.route('/postAdhs', methods=['POST'])
 @require_appkey

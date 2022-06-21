@@ -282,7 +282,8 @@ def getAdhs():
         "membership_state": "",
         "membership_start": "",
         "membership_stop": "",
-        "account_cyclos": ""
+        "account_cyclos": "",
+        "orga_choice": ""
     }
     list_adhs = []
     (cols, adhs) = getOdooAdhs(filters)

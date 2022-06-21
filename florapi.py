@@ -181,7 +181,7 @@ def postOdooAdhs(email, infos):
                 name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
                 now = datetime.now()
                 dt_string = now.strftime("%d/%m/%Y %H:%M:%S.%f")
-                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, write_date, street, zip, city, orga_choice) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+dt_string+"', '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"');"
+                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, write_date, street, zip, city, orga_choice, account_cyclos) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+dt_string+"', '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"');"
                 # select name,ref,phone,email from res_partner where is_company='f';
                 # print (sql)
                 cursor.execute(sql)
@@ -351,7 +351,8 @@ def postAdhs():
         "firstname",
         "lastname",
         "phone",
-        "ref"
+        "ref",
+        "account_cyclos"
     }
     json_data = request.get_json(force=True)
     for arg in required_args:

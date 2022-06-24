@@ -83,6 +83,18 @@ def require_appkey(view_function):
             abort(401)
     return decorated_function
 
+def getOdooAdhId(email):
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT id from res_partner where email='"+email+"';"
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL[0][0]
+        finally:
+            connection.close()
+
 def getOdooAdhpros(filters):
     connection = connect()
     if (connection != None):
@@ -173,7 +185,7 @@ def getFreeOdooRef():
         finally:
             connection.close()
 
-def postOdooAdhs(email, infos):
+def createOdooAdhs(email, infos):
     connection = connect()
     if (connection != None):
         try:
@@ -181,15 +193,16 @@ def postOdooAdhs(email, infos):
                 name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
                 now = datetime.now()
                 dt_string = now.strftime("%d/%m/%Y %H:%M:%S.%f")
-                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, write_date, street, zip, city, orga_choice, account_cyclos) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+dt_string+"', '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"');"
+                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, write_date, street, zip, city, orga_choice, account_cyclos, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+dt_string+"', '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+str(now)+"', '"+str(now)+"');"
                 # select name,ref,phone,email from res_partner where is_company='f';
                 # print (sql)
                 cursor.execute(sql)
                 connection.commit()
+                return cursor.lastrowid
         finally:
             connection.close()
 
-def putOdooAdhs(email, infos):
+def updateOdooAdhs(email, infos):
     connection = connect()
     if (connection != None):
         try:
@@ -207,6 +220,74 @@ def putOdooAdhs(email, infos):
                     #print(sql)
                     cursor.execute(sql)
                     connection.commit()
+                    return cursor.lastrowid
+        finally:
+            connection.close()
+
+def createMembershipLine(partner_id, account_invoice_line, amount):
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                if partner_id is not None:
+                    now = datetime.now()
+                    dt_string = now.strftime("%Y-%m-%d")
+                    years_to_add = now.year + 1
+                    dt_string2 = now.replace(year=years_to_add).strftime('%Y-%m-%d')
+
+                    sql = "INSERT INTO membership_membership_line (partner, membership_id, date_from, date_to, date, member_price, account_invoice_line, company_id, state, create_date, write_date) VALUES ("+str(partner_id)+", 1, '"+dt_string+"', '"+dt_string2+"', '"+dt_string+"', '"+amount+"', "+str(account_invoice_line)+", 1, 'waiting', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    cursor.execute(sql)
+                    id_of_new_row = cursor.fetchone()[0]
+                    connection.commit()
+                    return id_of_new_row
+        finally:
+            connection.close()
+
+
+def createAccountInvoice(partner_id, amount, name):
+    print("createAccountInvoice")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                if partner_id is not None:
+                    now = datetime.now()
+                    sql = "INSERT INTO account_invoice (type, state, sent, partner_id, account_id, amount_untaxed, amount_untaxed_signed, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, reference_type, create_date, write_date) VALUES('out_invoice', 'draft', 'f', "+str(partner_id)+", 281, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', 1, 1, 1, 't', '0.00', '0.00', '0.00', 2, '"+name+"', 'none', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    #print (sql)
+                    cursor.execute(sql)
+                    id_of_new_row = cursor.fetchone()[0]
+                    connection.commit()
+                    return id_of_new_row
+        finally:
+            connection.close()
+
+def createAccountInvoiceLine2022(partner_id, amount, invoice_id):
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                if partner_id is not None:
+                    now = datetime.now()
+                    sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh2022] Adh2022', '10', "+str(invoice_id)+", 1, 2, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+partner_id+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    cursor.execute(sql)
+                    id_of_new_row = cursor.fetchone()[0]
+                    connection.commit()
+                    return id_of_new_row
+        finally:
+            connection.close()
+
+def createAccountInvoiceLine(partner_id, amount, invoice_id):
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                if partner_id is not None:
+                    now = datetime.now()
+                    sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+partner_id+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    cursor.execute(sql)
+                    id_of_new_row = cursor.fetchone()[0]
+                    connection.commit()
+                    return id_of_new_row
         finally:
             connection.close()
 
@@ -237,6 +318,7 @@ def getAdhpros():
     webLogger.info(LOG_HEADER + '[/getAdhpros] GET')
     filters = request.args.to_dict()
     pgsql_headers = {
+        "id": "",
         "name": "",
         "street": "",
         "zip": "",
@@ -271,6 +353,7 @@ def getAdhs():
     #print(filters)
     #print(data['account_cyclos'])
     pgsql_headers = {
+        "id": "",
         "firstname": "",
         "lastname": "",
         "street": "",
@@ -360,7 +443,7 @@ def postAdhs():
         if arg not in json_data['infos']:
             webLogger.error(LOG_HEADER + '[/postAdhs] expected data not found : '+arg)
             return "404"
-    postOdooAdhs(json_data['email'], json_data['infos'])
+    createOdooAdhs(json_data['email'], json_data['infos'])
     #infos = request.args.to_dict()
     #print(infos)
     return "200"
@@ -371,7 +454,33 @@ def postAdhs():
 def putAdhs():
     webLogger.info(LOG_HEADER + '[/putAdhs] POST')
     json_data = request.get_json(force=True)
-    putOdooAdhs(json_data['email'], json_data['infos'])
+    updateOdooAdhs(json_data['email'], json_data['infos'])
+    return "200"
+
+@app.route('/postMembership', methods=['POST'])
+@require_appkey
+@swag_from("api/postMembership.yml")
+def postMembership():
+    webLogger.info(LOG_HEADER + '[/postMembership] POST')
+    required_args = {
+        "email",
+        "name",
+        "amount"
+    }
+    json_data = request.get_json(force=True)
+    for arg in required_args:
+        if arg not in json_data:
+            webLogger.error(LOG_HEADER + '[/postMembership] expected data not found : '+arg)
+            return "404"
+    partner_id = getOdooAdhId(json_data['email'])
+    invoice_id = createAccountInvoice(partner_id, json_data['amount'], json_data['name'])
+    account_invoice_line = createAccountInvoiceLine(partner_id, json_data['amount'], invoice_id)
+    createMembershipLine(partner_id, account_invoice_line, json_data['amount'])
+    infos = {
+        "membership_state": "waiting"
+    }
+    updateOdooAdhs(json_data['email'], infos)
+    # Update adh to waiting
     return "200"
 
 d = wsgiserver.WSGIPathInfoDispatcher({'/': app})

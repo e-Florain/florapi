@@ -84,11 +84,13 @@ def require_appkey(view_function):
     return decorated_function
 
 def getOdooAdhId(email):
+    webLogger.info(LOG_HEADER+" getOdooAdhId")
     connection = connect()
     if (connection != None):
         try:
             with connection.cursor() as cursor:
                 sql = "SELECT id from res_partner where email='"+email+"';"
+                webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 resultsSQL = cursor.fetchall()
                 return resultsSQL[0][0]
@@ -96,6 +98,7 @@ def getOdooAdhId(email):
             connection.close()
 
 def getOdooAdhpros(filters):
+    webLogger.info(LOG_HEADER+" getOdooAdhpros")
     connection = connect()
     if (connection != None):
         try:
@@ -107,6 +110,7 @@ def getOdooAdhpros(filters):
                     else:
                         sql += " and "+x+"='"+y+"'"
                 sql += ";"
+                webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 resultsSQL = cursor.fetchall()
 
@@ -117,6 +121,7 @@ def getOdooAdhpros(filters):
             connection.close()
 
 def getOdooAdhs(filters):
+    webLogger.info(LOG_HEADER+" getOdooAdhs")
     connection = connect()
     if (connection != None):
         try:
@@ -129,10 +134,9 @@ def getOdooAdhs(filters):
                     else:
                         sql += " and "+x+"='"+y+"'"
                 sql += ";"
-                #print(sql)
                 cursor.execute(sql)
+                webLogger.debug(LOG_HEADER+" "+sql)
                 resultsSQL = cursor.fetchall()
-
                 cursor.execute("SELECT * from res_partner LIMIT 0")
                 colnames = [desc[0] for desc in cursor.description]
                 return (colnames, resultsSQL)
@@ -140,6 +144,7 @@ def getOdooAdhs(filters):
             connection.close()
 
 def getOdooAssos(filters):
+    webLogger.info(LOG_HEADER+" getOdooAssos")
     connection = connect()
     if (connection != None):
         try:
@@ -152,7 +157,7 @@ def getOdooAssos(filters):
                     else:
                         sql += " and "+x+"='"+y+"'"
                 sql += ";"
-                #print(sql)
+                webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 resultsSQL = cursor.fetchall()
 
@@ -163,6 +168,7 @@ def getOdooAssos(filters):
             connection.close()
 
 def getFreeOdooRef():
+    webLogger.info(LOG_HEADER+" getFreeOdooRef")
     connection = connect()
     firstRef = 4000
     if (connection != None):
@@ -186,6 +192,7 @@ def getFreeOdooRef():
             connection.close()
 
 def createOdooAdhs(email, infos):
+    webLogger.info(LOG_HEADER+" createOdooAdhs")
     connection = connect()
     if (connection != None):
         try:
@@ -196,7 +203,7 @@ def createOdooAdhs(email, infos):
                 #sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, write_date, street, zip, city, orga_choice, account_cyclos, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+dt_string+"', '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+str(now)+"', '"+str(now)+"');"
                 sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, street, zip, city, orga_choice, account_cyclos, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+str(now)+"', '"+str(now)+"');"
                 # select name,ref,phone,email from res_partner where is_company='f';
-                # print (sql)
+                webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 connection.commit()
                 return cursor.lastrowid
@@ -204,6 +211,7 @@ def createOdooAdhs(email, infos):
             connection.close()
 
 def updateOdooAdhs(email, infos):
+    webLogger.info(LOG_HEADER+" updateOdooAdhs")
     connection = connect()
     if (connection != None):
         try:
@@ -218,7 +226,7 @@ def updateOdooAdhs(email, infos):
                             sql += key+"='"+infos[key]+"' "
                         i=i+1
                     sql += "WHERE email='"+email+"';"
-                    #print(sql)
+                    webLogger.debug(LOG_HEADER+" "+sql)
                     cursor.execute(sql)
                     connection.commit()
                     return cursor.lastrowid
@@ -226,6 +234,7 @@ def updateOdooAdhs(email, infos):
             connection.close()
 
 def createMembershipLine(partner_id, account_invoice_line, amount):
+    webLogger.info(LOG_HEADER+" createMembershipLine")
     connection = connect()
     if (connection != None):
         try:
@@ -235,8 +244,8 @@ def createMembershipLine(partner_id, account_invoice_line, amount):
                     dt_string = now.strftime("%Y-%m-%d")
                     years_to_add = now.year + 1
                     dt_string2 = now.replace(year=years_to_add).strftime('%Y-%m-%d')
-
                     sql = "INSERT INTO membership_membership_line (partner, membership_id, date_from, date_to, date, member_price, account_invoice_line, company_id, state, create_date, write_date) VALUES ("+str(partner_id)+", 1, '"+dt_string+"', '"+dt_string2+"', '"+dt_string+"', '"+amount+"', "+str(account_invoice_line)+", 1, 'waiting', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    webLogger.debug(LOG_HEADER+" "+sql)
                     cursor.execute(sql)
                     id_of_new_row = cursor.fetchone()[0]
                     connection.commit()
@@ -246,7 +255,7 @@ def createMembershipLine(partner_id, account_invoice_line, amount):
 
 
 def createAccountInvoice(partner_id, amount, name):
-    print("createAccountInvoice")
+    webLogger.info(LOG_HEADER+ " createAccountInvoice")
     connection = connect()
     if (connection != None):
         try:
@@ -254,6 +263,8 @@ def createAccountInvoice(partner_id, amount, name):
                 if partner_id is not None:
                     now = datetime.now()
                     sql = "INSERT INTO account_invoice (type, state, sent, partner_id, account_id, amount_untaxed, amount_untaxed_signed, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, reference_type, create_date, write_date) VALUES('out_invoice', 'draft', 'f', "+str(partner_id)+", 281, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', 1, 1, 1, 't', '0.00', '0.00', '0.00', 2, '"+name+"', 'none', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    webLogger.debug(LOG_HEADER+" "+sql)
+                    cursor.execute(sql)
                     id_of_new_row = cursor.fetchone()[0]
                     connection.commit()
                     return id_of_new_row
@@ -261,6 +272,7 @@ def createAccountInvoice(partner_id, amount, name):
             connection.close()
 
 def createAccountInvoiceLine2022(partner_id, amount, invoice_id):
+    webLogger.info(LOG_HEADER+" createAccountInvoiceLine2022")
     connection = connect()
     if (connection != None):
         try:
@@ -268,6 +280,7 @@ def createAccountInvoiceLine2022(partner_id, amount, invoice_id):
                 if partner_id is not None:
                     now = datetime.now()
                     sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh2022] Adh2022', '10', "+str(invoice_id)+", 1, 2, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    webLogger.debug(LOG_HEADER+" "+sql)
                     cursor.execute(sql)
                     id_of_new_row = cursor.fetchone()[0]
                     connection.commit()
@@ -276,6 +289,7 @@ def createAccountInvoiceLine2022(partner_id, amount, invoice_id):
             connection.close()
 
 def createAccountInvoiceLine(partner_id, amount, invoice_id):
+    webLogger.info(LOG_HEADER+" createAccountInvoiceLine")
     connection = connect()
     if (connection != None):
         try:
@@ -283,7 +297,7 @@ def createAccountInvoiceLine(partner_id, amount, invoice_id):
                 if partner_id is not None:
                     now = datetime.now()
                     sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                    #print(sql)
+                    webLogger.debug(LOG_HEADER+" "+sql)
                     cursor.execute(sql)
                     id_of_new_row = cursor.fetchone()[0]
                     connection.commit()

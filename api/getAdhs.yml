@@ -18,7 +18,11 @@ parameters:
 - name: account_cyclos
   in: query
   type: string
-  description: "'t' or 'f' (true or false)"
+  description: "t or f (true or false)"
+- name: accept_newsletter
+  in: query
+  type: string
+  description: "t or f (true or false)"
 responses:
   200:
     description: "Success"

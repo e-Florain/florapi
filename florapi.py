@@ -191,12 +191,48 @@ def getFreeOdooRef():
         finally:
             connection.close()
 
+def getOdooAccountInvoiceSeq():
+    webLogger.info(LOG_HEADER+" getOdooAccountInvoiceSeq")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT last_value from account_invoice_id_seq;"
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL[0][0]
+        finally:
+            connection.close()
+
+def getOdooLastInvoice():
+    webLogger.info(LOG_HEADER+" getOdooLastInvoice ")
+    connection = connect()
+    id = getOdooAccountInvoiceSeq()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT id,number,move_name,reference from account_invoice where id="+str(id)+";"
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL[0]
+        finally:
+            connection.close()
+
 def createOdooAdhs(email, infos):
     webLogger.info(LOG_HEADER+" createOdooAdhs")
     connection = connect()
     if (connection != None):
         try:
             with connection.cursor() as cursor:
+                for key in infos:
+                    if isinstance(infos[key], str):
+                        infos[key] = infos[key].replace("'", "''")
+                #infos['firstname'] = infos['firstname'].replace("'", "''")
+                #infos['lastname'] = infos['lastname'].replace("'", "''")
+                #infos['street'] = infos['street'].replace("'", "''")
+                #infos['city'] = infos['city'].replace("'", "''")
                 name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
                 now = datetime.now()
                 dt_string = now.strftime("%d/%m/%Y %H:%M:%S.%f")
@@ -216,6 +252,9 @@ def updateOdooAdhs(email, infos):
         try:
             with connection.cursor() as cursor:
                 if infos is not None:
+                    for key in infos:
+                        if isinstance(infos[key], str):
+                            infos[key] = infos[key].replace("'", "''")
                     sql = "UPDATE res_partner SET "
                     i=1
                     for key in infos:
@@ -303,6 +342,59 @@ def createAccountInvoiceLine(partner_id, amount, invoice_id):
                     return id_of_new_row
         finally:
             connection.close()
+
+def createAccountMove(amount):
+    webLogger.info(LOG_HEADER+" createAccountMove")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                now = datetime.now()
+                infos = getOdooLastInvoice()
+                lastinvoice = infos[3]
+                res = re.match('FAC/(\d{4})/(\d{4})/(\d{2})', lastinvoice)
+                invoiceid = int(res.group(2))+1
+                moveid = int(res.group(3))+1
+                yearstr = now.strftime("%Y")
+                dt_string = now.strftime("%Y-%m-%d")
+                name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
+                ref =  str(name)+'/'+str(moveid)
+                sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
+                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                #print(sql)
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                move_id = cursor.fetchone()[0]
+                updateAccountInvoice(name, ref, move_id)
+                connection.commit()
+                #return id_of_new_row
+                return ""
+        finally:
+            connection.close()
+
+def updateAccountInvoice(invoiceid, moveid, amount):
+    webLogger.info(LOG_HEADER+" createAccountMove")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                now = datetime.now()
+                dt_string = now.strftime("%Y-%m-%d")
+                name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
+                ref =  str(name)+'/'+str(moveid)
+                sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
+                
+                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                print(sql)
+                webLogger.debug(LOG_HEADER+" "+sql)
+                #cursor.execute(sql)
+                #id_of_new_row = cursor.fetchone()[0]
+                connection.commit()
+                #return id_of_new_row
+                return ""
+        finally:
+            connection.close()
+#INSERT INTO account_invoice(type, number, move_name, reference, state, sent, date_invoice, date_due, partner_id, date, account_id, move_id, amount_untaxed, amount_untaxed_signed, amount_tax, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, create_date, write_date) values('out_invoice', number, number, number, 'open', 'f', datetoday, datetoday, partner_id, datetoday, '281', move_id, '6.00', '6.00', '0.00', '6.00', '6.00', '6.00', 1, 1, 1, 'f', '6.00', '6.00', '6.00', 2, 'ROCHE Guillaume', "+str(now)+"', '"+str(now)+"');"
 
 def connect():
     """ Connect to the PostgreSQL database server """
@@ -432,6 +524,22 @@ def getAssos():
         list_assos.append(assos_dict)
     return jsonify(list_assos)
 
+@app.route('/getAccountInvoiceSeq', methods=['GET'])
+@require_appkey
+@swag_from("api/getAccountInvoiceSeq.yml")
+def getAccountInvoiceSeq():
+    webLogger.info(LOG_HEADER + '[/getAccountInvoiceSeq] GET')
+    ref = getOdooAccountInvoiceSeq()
+    return jsonify(ref)
+
+@app.route('/getLastInvoice', methods=['GET'])
+@require_appkey
+@swag_from("api/getLastInvoice.yml")
+def getLastInvoice():
+    webLogger.info(LOG_HEADER + '[/getLastInvoice] GET')
+    infos = getOdooLastInvoice()
+    return jsonify(infos)
+
 @app.route('/getFreeRef', methods=['GET'])
 @require_appkey
 @swag_from("api/getFreeRef.yml")
@@ -496,6 +604,15 @@ def postMembership():
     }
     updateOdooAdhs(json_data['email'], infos)
     # Update adh to waiting
+    return "200"
+
+@app.route('/postInvoice', methods=['POST'])
+#@require_appkey
+@swag_from("api/postInvoice.yml")
+def postInvoice():
+    webLogger.info(LOG_HEADER + '[/postInvoice] POST')
+    print("test")
+    createAccountMove("6.00")
     return "200"
 
 d = wsgiserver.WSGIPathInfoDispatcher({'/': app})

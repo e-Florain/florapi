@@ -1,0 +1,19 @@
+summary: "Get Last Invoice"
+description: "Récupère le nom de la dernière facture et le nom du dernier paiement"
+produces:
+- "application/json"
+responses:
+  200:
+    description: "Success"
+    schema:
+      type: "object"
+      properties:
+        data:
+          type: "object"
+        status:
+          type: "string"
+        message:
+          type: "string"
+ 
+  400:
+    description: "Same response is for 202, 400"

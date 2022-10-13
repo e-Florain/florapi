@@ -170,7 +170,7 @@ def getOdooAssos(filters):
 def getFreeOdooRef():
     webLogger.info(LOG_HEADER+" getFreeOdooRef")
     connection = connect()
-    firstRef = 4000
+    firstRef = 10000
     if (connection != None):
         try:
             with connection.cursor() as cursor:
@@ -300,6 +300,7 @@ def createAccountInvoice(partner_id, amount, name):
             with connection.cursor() as cursor:
                 if partner_id is not None:
                     now = datetime.now()
+                    name = name.replace("'", "''")
                     sql = "INSERT INTO account_invoice (type, state, sent, partner_id, account_id, amount_untaxed, amount_untaxed_signed, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, reference_type, create_date, write_date) VALUES('out_invoice', 'draft', 'f', "+str(partner_id)+", 281, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', 1, 1, 1, 't', '0.00', '0.00', '0.00', 2, '"+name+"', 'none', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
                     webLogger.debug(LOG_HEADER+" "+sql)
                     cursor.execute(sql)
@@ -373,7 +374,7 @@ def createAccountMove(amount):
             connection.close()
 
 def updateAccountInvoice(invoiceid, moveid, amount):
-    webLogger.info(LOG_HEADER+" createAccountMove")
+    webLogger.info(LOG_HEADER+" updateAccountInvoice")
     connection = connect()
     if (connection != None):
         try:
@@ -382,7 +383,8 @@ def updateAccountInvoice(invoiceid, moveid, amount):
                 dt_string = now.strftime("%Y-%m-%d")
                 name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
                 ref =  str(name)+'/'+str(moveid)
-                sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
+                sql = "UPDATE account_invoice SET WHERE "
+                #sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
                 
                 #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
                 print(sql)

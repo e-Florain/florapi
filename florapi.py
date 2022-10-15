@@ -474,7 +474,8 @@ def getAdhs():
         "membership_stop": "",
         "account_cyclos": "",
         "orga_choice": "",
-        "accept_newsletter": ""
+        "accept_newsletter": "",
+        "changeeuros": ""
     }
     list_adhs = []
     (cols, adhs) = getOdooAdhs(filters)

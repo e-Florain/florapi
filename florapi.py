@@ -229,15 +229,11 @@ def createOdooAdhs(email, infos):
                 for key in infos:
                     if isinstance(infos[key], str):
                         infos[key] = infos[key].replace("'", "''")
-                #infos['firstname'] = infos['firstname'].replace("'", "''")
-                #infos['lastname'] = infos['lastname'].replace("'", "''")
-                #infos['street'] = infos['street'].replace("'", "''")
-                #infos['city'] = infos['city'].replace("'", "''")
                 name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
                 now = datetime.now()
                 dt_string = now.strftime("%d/%m/%Y %H:%M:%S.%f")
                 #sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, street, zip, city, orga_choice, account_cyclos, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+str(now)+"', '"+str(now)+"');"
-                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, street, zip, city, orga_choice, account_cyclos, accept_newsletter, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+infos['accept_newsletter']+"', '"+str(now)+"', '"+str(now)+"');"
+                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, street, zip, city, orga_choice, account_cyclos, accept_newsletter, changeeuros, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+infos['accept_newsletter']+"', '"+infos['changeeuros']+"', '"+str(now)+"', '"+str(now)+"');"
                 webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 connection.commit()

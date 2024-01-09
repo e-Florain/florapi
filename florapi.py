@@ -105,8 +105,11 @@ def getOdooAdhpros(filters):
             with connection.cursor() as cursor:
                 sql = "SELECT * from res_partner where is_company='t' and active='t'"
                 for x, y in filters.items():
-                    if ((x == "name") or (x == "email")):
+                    if (x == "name"):
                         sql += " and upper("+x+") like upper('%"+y+"%')"
+                    elif ((x == "email") or (x == "contact_email")):
+                        sql += " and (upper(email) like upper('%"+y+"%')) or "
+                        sql += "(upper(contact_email) like upper('%"+y+"%'))"
                     else:
                         sql += " and "+x+"='"+y+"'"
                 sql += ";"
@@ -340,8 +343,54 @@ def createAccountInvoiceLine(partner_id, amount, invoice_id):
         finally:
             connection.close()
 
+def createAccountInvoiceLineAdhCompl(partner_id, amount, invoice_id):
+    webLogger.info(LOG_HEADER+" createAccountInvoiceLineAdhCompl")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                if partner_id is not None:
+                    now = datetime.now()
+                    sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('Adh compl', '10', "+str(invoice_id)+", 1, 4, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    webLogger.debug(LOG_HEADER+" "+sql)
+                    cursor.execute(sql)
+                    id_of_new_row = cursor.fetchone()[0]
+                    connection.commit()
+                    return id_of_new_row
+        finally:
+            connection.close()
+
 def createAccountMove(amount):
     webLogger.info(LOG_HEADER+" createAccountMove")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                now = datetime.now()
+                infos = getOdooLastInvoice()
+                lastinvoice = infos[3]
+                res = re.match('FAC/(\d{4})/(\d{4})/(\d{2})', lastinvoice)
+                invoiceid = int(res.group(2))+1
+                moveid = int(res.group(3))+1
+                yearstr = now.strftime("%Y")
+                dt_string = now.strftime("%Y-%m-%d")
+                name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
+                ref =  str(name)+'/'+str(moveid)
+                sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
+                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                #print(sql)
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                move_id = cursor.fetchone()[0]
+                updateAccountInvoice(name, ref, move_id)
+                connection.commit()
+                #return id_of_new_row
+                return ""
+        finally:
+            connection.close()
+
+def createAccountMoveAdhCompl(amount):
+    webLogger.info(LOG_HEADER+" createAccountMoveAdhCompl")
     connection = connect()
     if (connection != None):
         try:
@@ -427,10 +476,12 @@ def getAdhpros():
         "zip": "",
         "city": "",
         "email": "",
+        "contact_email": "",
         "phone": "",
         "detailed_activity": "",
         "membership_state": "",
-        "account_cyclos": ""
+        "account_cyclos": "",
+        "write_date": ""
     }
     list_adhpros = []
     (cols, adhpros) = getOdooAdhpros(filters)
@@ -471,7 +522,8 @@ def getAdhs():
         "account_cyclos": "",
         "orga_choice": "",
         "accept_newsletter": "",
-        "changeeuros": ""
+        "changeeuros": "",
+        "write_date": ""
     }
     list_adhs = []
     (cols, adhs) = getOdooAdhs(filters)
@@ -603,6 +655,29 @@ def postMembership():
     }
     updateOdooAdhs(json_data['email'], infos)
     # Update adh to waiting
+    return "200"
+
+@app.route('/postMembershipCompl', methods=['POST'])
+@require_appkey
+@swag_from("api/postMembershipCompl.yml")
+def postMembershipCompl():
+    webLogger.info(LOG_HEADER + '[/postMembershipCompl] POST')
+    required_args = {
+        "email",
+        "name",
+        "amount"
+    }
+    print("test")
+    json_data = request.get_json(force=True)
+    print("test2")
+    for arg in required_args:
+        if arg not in json_data:
+            webLogger.error(LOG_HEADER + '[/postMembershipCompl] expected data not found : '+arg)
+            return "404"
+    print("test3")
+    partner_id = getOdooAdhId(json_data['email'])
+    invoice_id = createAccountInvoice(partner_id, json_data['amount'], json_data['name'])
+    account_invoice_line = createAccountInvoiceLineAdhCompl(partner_id, json_data['amount'], invoice_id)
     return "200"
 
 @app.route('/postInvoice', methods=['POST'])

@@ -4,7 +4,7 @@ After=multi-user.target
  
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 florapi.py 
+ExecStart=/home/www/florapi/florapi-venv/bin/python3 /home/www/florapi/florapi.py
 Restart=on-abort
  
 [Install]

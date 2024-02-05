@@ -1,0 +1,6 @@
+requests
+flask
+flask-restful
+psycopg2
+flasgger
+cheroot

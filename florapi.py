@@ -14,7 +14,7 @@ import requests  # make http request to shutdown web server
 from flask import Flask, request, redirect, url_for, render_template, abort, jsonify
 from flask_restful import Api, Resource, reqparse
 import time, signal
-from cherrypy import wsgiserver
+from cheroot import wsgi
 import psycopg2
 import config as cfg
 from flasgger import Swagger, LazyString, LazyJSONEncoder
@@ -689,8 +689,8 @@ def postInvoice():
     createAccountMove("6.00")
     return "200"
 
-d = wsgiserver.WSGIPathInfoDispatcher({'/': app})
-server = wsgiserver.CherryPyWSGIServer(('0.0.0.0', 80), d)
+addr = '0.0.0.0', 80
+server = wsgi.Server(addr, app)
 
 if __name__ == '__main__':
     global session

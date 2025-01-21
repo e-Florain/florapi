@@ -194,34 +194,43 @@ def getFreeOdooRef():
         finally:
             connection.close()
 
-def getOdooAccountInvoiceSeq():
-    webLogger.info(LOG_HEADER+" getOdooAccountInvoiceSeq")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                sql = "SELECT last_value from account_invoice_id_seq;"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                resultsSQL = cursor.fetchall()
-                return resultsSQL[0][0]
-        finally:
-            connection.close()
+# def getOdooAccountInvoiceSeq():
+#     webLogger.info(LOG_HEADER+" getOdooAccountInvoiceSeq")
+#     connection = connect()
+#     if (connection != None):
+#         try:
+#             with connection.cursor() as cursor:
+#                 sql = "SELECT last_value from account_invoice_id_seq;"
+#                 webLogger.debug(LOG_HEADER+" "+sql)
+#                 cursor.execute(sql)
+#                 resultsSQL = cursor.fetchall()
+#                 return resultsSQL[0][0]
+#         finally:
+#             connection.close()
 
 def getOdooLastInvoice():
     webLogger.info(LOG_HEADER+" getOdooLastInvoice ")
     connection = connect()
-    id = getOdooAccountInvoiceSeq()
+    #id = getOdooAccountInvoiceSeq()
     if (connection != None):
         try:
             with connection.cursor() as cursor:
-                sql = "SELECT id,number,move_name,reference from account_invoice where id="+str(id)+";"
+                #sql = "SELECT id,number,move_name,reference from account_invoice where id="+str(id)+";"
+                sql = "select sequence_prefix,name from account_move order by name desc;"
                 webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 resultsSQL = cursor.fetchall()
-                return resultsSQL[0]
+                m = re.match(resultsSQL[0][0]+"(\d+)", resultsSQL[0][1])
+                if m:
+                    return m.group(1),resultsSQL[0][0]
         finally:
             connection.close()
+
+def getNameForInvoice():
+    webLogger.info(LOG_HEADER+" getNameForInvoice ")
+    (lastnum,prefix) = getOdooLastInvoice()
+    num = int(lastnum)+1
+    return prefix+'{:0>5}'.format(num)
 
 def createOdooAdhs(email, infos):
     webLogger.info(LOG_HEADER+" createOdooAdhs")
@@ -235,8 +244,17 @@ def createOdooAdhs(email, infos):
                 name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
                 now = datetime.now()
                 dt_string = now.strftime("%d/%m/%Y %H:%M:%S.%f")
-                #sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, street, zip, city, orga_choice, account_cyclos, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+str(now)+"', '"+str(now)+"');"
-                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, customer, supplier, employee, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, street, zip, city, orga_choice, account_cyclos, accept_newsletter, changeeuros, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+infos['accept_newsletter']+"', '"+infos['changeeuros']+"', '"+str(now)+"', '"+str(now)+"');"
+                # STANDALONE partner
+                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, tz, type, is_main_profile, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, street, zip, city, orga_choice, account_cyclos, accept_newsletter, changeeuros, team_id, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 'Europe/Paris', 'contact', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+infos['accept_newsletter']+"', '"+infos['changeeuros']+"', 1, '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                # pour les 2 id créées insérer la ligne suivante
+                #INSERT INTO partner_favorite_user_rel (partner_id, user_id) VALUES (37, 2);
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                id_of_new_row = cursor.fetchone()[0]
+                connection.commit()
+                
+                # ATTACHED partner
+                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, active, lang, tz, type, is_company, is_published, is_adhered_member, free_member, contact_type, contact_id, membership_state, create_uid, write_uid, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', 't', 'fr_FR', 'Europe/Paris', 'other', 'f', 'f', 'f', 't', 'attached','"+str(id_of_new_row)+"','free', 2, 2, '"+str(now)+"', '"+str(now)+"');"
                 webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 connection.commit()
@@ -270,7 +288,185 @@ def updateOdooAdhs(email, infos):
         finally:
             connection.close()
 
-def createMembershipLine(partner_id, account_invoice_line, amount):
+
+
+# def createAccountInvoice(partner_id, amount, name):
+#     webLogger.info(LOG_HEADER+ " createAccountInvoice")
+#     connection = connect()
+#     if (connection != None):
+#         try:
+#             with connection.cursor() as cursor:
+#                 if partner_id is not None:
+#                     now = datetime.now()
+#                     name = name.replace("'", "''")
+#                     sql = "INSERT INTO account_invoice (type, state, sent, partner_id, account_id, amount_untaxed, amount_untaxed_signed, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, reference_type, create_date, write_date) VALUES('out_invoice', 'draft', 'f', "+str(partner_id)+", 281, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', 1, 1, 1, 't', '0.00', '0.00', '0.00', 2, '"+name+"', 'none', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+#                     webLogger.debug(LOG_HEADER+" "+sql)
+#                     cursor.execute(sql)
+#                     id_of_new_row = cursor.fetchone()[0]
+#                     connection.commit()
+#                     return id_of_new_row
+#         finally:
+#             connection.close()
+
+# def createAccountInvoiceLine2022(partner_id, amount, invoice_id):
+#     webLogger.info(LOG_HEADER+" createAccountInvoiceLine2022")
+#     connection = connect()
+#     if (connection != None):
+#         try:
+#             with connection.cursor() as cursor:
+#                 if partner_id is not None:
+#                     now = datetime.now()
+#                     sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh2022] Adh2022', '10', "+str(invoice_id)+", 1, 2, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+#                     webLogger.debug(LOG_HEADER+" "+sql)
+#                     cursor.execute(sql)
+#                     id_of_new_row = cursor.fetchone()[0]
+#                     connection.commit()
+#                     return id_of_new_row
+#         finally:
+#             connection.close()
+
+# def createAccountInvoiceLine(partner_id, amount, invoice_id):
+#     webLogger.info(LOG_HEADER+" createAccountInvoiceLine")
+#     connection = connect()
+#     if (connection != None):
+#         try:
+#             with connection.cursor() as cursor:
+#                 if partner_id is not None:
+#                     now = datetime.now()
+#                     sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+#                     webLogger.debug(LOG_HEADER+" "+sql)
+#                     cursor.execute(sql)
+#                     id_of_new_row = cursor.fetchone()[0]
+#                     connection.commit()
+#                     return id_of_new_row
+#         finally:
+#             connection.close()
+
+# def createAccountInvoiceLineAdhCompl(partner_id, amount, invoice_id):
+#     webLogger.info(LOG_HEADER+" createAccountInvoiceLineAdhCompl")
+#     connection = connect()
+#     if (connection != None):
+#         try:
+#             with connection.cursor() as cursor:
+#                 if partner_id is not None:
+#                     now = datetime.now()
+#                     sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('Adh compl', '10', "+str(invoice_id)+", 1, 4, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+#                     webLogger.debug(LOG_HEADER+" "+sql)
+#                     cursor.execute(sql)
+#                     id_of_new_row = cursor.fetchone()[0]
+#                     connection.commit()
+#                     return id_of_new_row
+#         finally:
+#             connection.close()
+
+def createAccountMove(partner_id, display_name, amount):
+    webLogger.info(LOG_HEADER+" createAccountMove")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                now = datetime.now()
+                #yearstr = now.strftime("%Y")
+                dt_string = now.strftime("%Y-%m-%d")
+                #name = getNameForInvoice()
+                #sql = "INSERT INTO account_move (name, date, journal_id, currency_id, state, move_type, auto_post, amount_untaxed, amount_total, amount_residual, amount_untaxed_signed, amount_total_signed, amount_total_in_currency_signed, amount_residual_signed, amount_tax, amount_tax_signed, company_id, create_date, write_date) VALUES ('"+name+"', '"+dt_string+"', 1, 1, 'draft', 'out_invoice', 'no', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '0.00', '0.00', 1, '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                #amount_untaxed, amount_total, amount_residual, amount_untaxed_signed, amount_total_signed, amount_total_in_currency_signed, amount_residual_signed, amount_tax, amount_tax_signed,
+                # INSERT INTO "account_move" ("auto_post", "company_id", "create_date", "create_uid", "currency_id", "date", "fiscal_position_id", "invoice_incoterm_id", "invoice_payment_term_id", "invoice_user_id", "is_move_sent", "journal_id", "move_type", "partner_id", "partner_shipping_id", "state", "write_date", "write_uid") VALUES ('no', 1, '2025-01-17 21:49:38.765862', 2, 1, '2025-01-17', NULL, NULL, NULL, 2, false, 1, 'out_invoice', partnerid, partnerid, 'draft', '2025-01-17 21:49:38.765862', 2) RETURNING "id"
+                #sql = "INSERT INTO account_move (auto_post, company_id, create_date, create_uid, currency_id, date, fiscal_position_id, invoice_incoterm_id, invoice_payment_term_id, invoice_user_id, is_move_sent, journal_id, move_type, partner_id, partner_shipping_id, state, write_date, write_uid)"
+                name = display_name.replace("'", "''")
+                
+                sql = "INSERT INTO account_move (auto_post, company_id, create_date, create_uid, currency_id, date, fiscal_position_id, invoice_incoterm_id, invoice_payment_term_id, invoice_user_id, is_move_sent, journal_id, move_type, partner_id, partner_shipping_id, state, amount_untaxed, amount_total, amount_residual, amount_untaxed_signed, amount_total_signed, amount_total_in_currency_signed, amount_residual_signed, amount_tax, amount_tax_signed, payment_state, always_tax_exigible, invoice_date_due, invoice_partner_display_name, write_date, write_uid)"
+                sql += "VALUES ('no', 1, '"+str(now)+"', 2, 1, '"+dt_string+"', NULL, NULL, NULL, 2, false, 1, 'out_invoice', '"+str(partner_id)+"', '"+str(partner_id)+"', 'draft','"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '0.00', '0.00', 'not_paid', false, '"+dt_string+"', '"+display_name+"', '"+str(now)+"', 2) RETURNING id;"
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                move_id = cursor.fetchone()[0]
+                #print(move_id)
+                #updateAccountInvoice(name, ref, move_id)
+                connection.commit()
+                #return id_of_new_row
+                return move_id
+        finally:
+            connection.close()
+
+def createAccountMoveLine1(move_id, amount):
+    webLogger.info(LOG_HEADER+" createAccountMoveLine")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                now = datetime.now()
+                #yearstr = now.strftime("%Y")
+                dt_string = now.strftime("%Y-%m-%d")
+                #name = getNameForInvoice()
+                #sql = "INSERT INTO account_move (name, date, journal_id, currency_id, state, move_type, auto_post, amount_untaxed, amount_total, amount_residual, amount_untaxed_signed, amount_total_signed, amount_total_in_currency_signed, amount_residual_signed, amount_tax, amount_tax_signed, company_id, create_date, write_date) VALUES ('"+name+"', '"+dt_string+"', 1, 1, 'draft', 'out_invoice', 'no', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '0.00', '0.00', 1, '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                #print(sql)
+                # INSERT INTO "account_move" ("auto_post", "company_id", "create_date", "create_uid", "currency_id", "date", "fiscal_position_id", "invoice_incoterm_id", "invoice_payment_term_id", "invoice_user_id", "is_move_sent", "journal_id", "move_type", "partner_id", "partner_shipping_id", "state", "write_date", "write_uid") VALUES ('no', 1, '2025-01-17 21:49:38.765862', 2, 1, '2025-01-17', NULL, NULL, NULL, 2, false, 1, 'out_invoice', partnerid, partnerid, 'draft', '2025-01-17 21:49:38.765862', 2) RETURNING "id"
+                #sql = "INSERT INTO account_move (auto_post, company_id, create_date, create_uid, currency_id, date, fiscal_position_id, invoice_incoterm_id, invoice_incoterm_id, invoice_payment_term_id, invoice_user_id, is_move_sent, journal_id, move_type, partner_id, partner_shipping_id, state, write_date, write_uid) VALUES ('no', 1, '"+str(now)+"', 2, 1, '"+dt_string+"', NULL, NULL, NULL, 2, false, 1, 'out_invoice', '"+partnerid+"', '"+partnerid+"', 'draft', '"+str(now)+"', 2) RETURNING id;"
+                #INSERT INTO "account_move_line" ("account_id", "amount_currency", "balance", "blocked", "company_currency_id", "company_id", "create_date", "create_uid", "credit", "currency_id", "debit", "discount", "display_type", "journal_id", "move_id", "name", "partner_id", "price_unit", "product_id", "product_uom_id", "quantity", "sequence", "tax_group_id", "tax_line_id", "write_date", "write_uid") VALUES (660, '0.00', '0.00', false, 1, 1, '2025-01-20 10:26:46.957645', 2, '0.00', 1, '0.00', '0.00', 'product', 1, 16, 'Adh', NULL, '10.00', 1, 1, '1.00', 100, NULL, NULL, '2025-01-20 10:26:46.957645', 2) RETURNING "id"
+                sql = "INSERT INTO account_move_line(account_id, amount_currency, balance, blocked, company_currency_id, company_id, create_date, create_uid, credit, currency_id, debit, discount, display_type, journal_id, move_id, name, partner_id, price_unit, product_id, product_uom_id, quantity, sequence, tax_group_id, tax_line_id, write_date, write_uid)"
+                sql += "VALUES (660, '0.00', '0.00', false, 1, 1, '"+str(now)+"', 2, '0.00', 1, '0.00', '0.00', 'product', 1, '"+str(move_id)+"', 'Adh', NULL, '"+str(amount)+"', 1, 1, '1.00', 100, NULL, NULL, '"+str(now)+"', 2) RETURNING id;"
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                moveline_id = cursor.fetchone()[0]
+                #print(moveline_id)
+                #updateAccountInvoice(name, ref, move_id)
+                connection.commit()
+                #return id_of_new_row
+                return moveline_id
+        finally:
+            connection.close()
+
+def createAccountMoveLine2(move_id, amount):
+    webLogger.info(LOG_HEADER+" createAccountMoveLine")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                now = datetime.now()
+                #yearstr = now.strftime("%Y")
+                dt_string = now.strftime("%Y-%m-%d")
+                #INSERT INTO "account_move_line" ("account_id", "amount_currency", "balance", "blocked", "company_currency_id", "company_id", "create_date", "create_uid", "credit", "currency_id", "date_maturity", "debit", "discount", "discount_date", "discount_percentage", "display_type", "journal_id", "move_id", "name", "partner_id", "price_unit", "product_uom_id", "quantity", "sequence", "tax_group_id", "tax_line_id", "write_date", "write_uid") 
+                                     #VALUES (303, '21.00', '21.00', false, 1, 1, '2025-01-17 21:49:38.765862', 2, '0.00', 1, '2025-01-17', '21.00', '0.00', NULL, 0.0, 'payment_term', 1, 14, '', NULL, '0.00', NULL, '0.00', 12000, NULL, NULL, '2025-01-17 21:49:38.765862', 2) RETURNING "id"
+                sql = "INSERT INTO account_move_line(account_id, amount_currency, balance, blocked, company_currency_id, company_id, create_date, create_uid, credit, currency_id, date_maturity, debit, discount, discount_date, discount_percentage, display_type, journal_id, move_id, name, partner_id, price_unit, product_uom_id, quantity, sequence, tax_group_id, tax_line_id, write_date, write_uid)"
+                sql += "VALUES (303, '"+str(amount)+"', '"+str(amount)+"', false, 1, 1, '"+str(now)+"', 2, '0.00', 1, '"+dt_string+"', '"+str(amount)+"', '0.00', NULL, 0.0, 'payment_term', 1, '"+str(move_id)+"', '', NULL, '0.00', NULL, '0.00', 12000, NULL, NULL, '"+str(now)+"', 2) RETURNING id;"
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                moveline_id = cursor.fetchone()[0]
+                #print(moveline_id)
+                #updateAccountInvoice(name, ref, move_id)
+                connection.commit()
+                #return id_of_new_row
+                return moveline_id
+        finally:
+            connection.close()
+
+def createAccountMoveLineAccountTaxRel(moveline_id):
+    webLogger.info(LOG_HEADER+" create account_move_line_account_tax_rel")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                now = datetime.now()
+                #yearstr = now.strftime("%Y")
+                dt_string = now.strftime("%Y-%m-%d")
+                
+                #sql = "INSERT INTO account_move_line(account_id, amount_currency, balance, blocked, company_currency_id, company_id, create_date, create_uid, credit, currency_id, debit, discount, display_type, journal_id, move_id, name, partner_id, price_unit, product_id, product_uom_id, quantity, sequence, tax_group_id, tax_line_id, write_date, write_uid)"
+                #sql += "VALUES (660, '0.00', '0.00', false, 1, 1, '"+str(now)+"', 2, '0.00', 1, '0.00', '0.00', 'product', 1, '"+move_id+"', 'Adh', NULL, '"+str(amount)+"', 1, 1, '1.00', 100, NULL, NULL, '"+str(now)+"', 2) RETURNING id;"
+                #INSERT INTO account_move_line_account_tax_rel (account_move_line_id, account_tax_id) VALUES (7, 48) ON CONFLICT DO NOTHING
+                sql = "INSERT INTO account_move_line_account_tax_rel (account_move_line_id, account_tax_id) VALUES('"+str(moveline_id)+"', 48) ON CONFLICT DO NOTHING;"
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                #print(moveline_id)
+                #updateAccountInvoice(name, ref, move_id)
+                connection.commit()
+                #return id_of_new_row
+                return ""
+        finally:
+            connection.close()
+
+def createMembershipLine(partner_id, moveline_id, amount):
     webLogger.info(LOG_HEADER+" createMembershipLine")
     connection = connect()
     if (connection != None):
@@ -281,7 +477,11 @@ def createMembershipLine(partner_id, account_invoice_line, amount):
                     dt_string = now.strftime("%Y-%m-%d")
                     years_to_add = now.year + 1
                     dt_string2 = now.replace(year=years_to_add).strftime('%Y-%m-%d')
-                    sql = "INSERT INTO membership_membership_line (partner, membership_id, date_from, date_to, date, member_price, account_invoice_line, company_id, state, create_date, write_date) VALUES ("+str(partner_id)+", 1, '"+dt_string+"', '"+dt_string2+"', '"+dt_string+"', '"+amount+"', "+str(account_invoice_line)+", 1, 'waiting', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    #sql = "INSERT INTO membership_membership_line (partner, membership_id, date_from, date_to, date, member_price, account_invoice_line, company_id, state, create_date, write_date) VALUES ("+str(partner_id)+", 1, '"+dt_string+"', '"+dt_string2+"', '"+dt_string+"', '"+amount+"', "+str(account_invoice_line)+", 1, 'waiting', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                    #INSERT INTO "membership_membership_line" ("account_invoice_line", "create_date", "create_uid", "date", "date_from", "date_to", "member_price", "membership_id", "partner", "write_date", "write_uid") VALUES (7, '2025-01-17 21:49:38.765862', 2, '2025-01-17', NULL, NULL, '21.00', 1, 45, '2025-01-17 21:49:38.765862', 2) RETURNING "id"
+                    sql = "INSERT INTO membership_membership_line (account_invoice_line, create_date, create_uid, date, date_from, date_to, member_price, membership_id, partner, write_date, write_uid)"
+                    #VALUES (7, '2025-01-17 21:49:38.765862', 2, '2025-01-17', NULL, NULL, '21.00', 1, 45, '2025-01-17 21:49:38.765862', 2) RETURNING "id"
+                    sql += "VALUES('"+str(moveline_id)+"', '"+str(now)+"', 2, '"+str(dt_string)+"', NULL, NULL, '"+str(amount)+"', 1, '"+str(partner_id)+"', '"+str(now)+"', 2) RETURNING id;"
                     webLogger.debug(LOG_HEADER+" "+sql)
                     cursor.execute(sql)
                     id_of_new_row = cursor.fetchone()[0]
@@ -290,158 +490,84 @@ def createMembershipLine(partner_id, account_invoice_line, amount):
         finally:
             connection.close()
 
-
-def createAccountInvoice(partner_id, amount, name):
-    webLogger.info(LOG_HEADER+ " createAccountInvoice")
+def updateMembershipLine(membership_id, infos):
+    webLogger.info(LOG_HEADER+" updateMembershipLine")
     connection = connect()
     if (connection != None):
         try:
             with connection.cursor() as cursor:
-                if partner_id is not None:
-                    now = datetime.now()
-                    name = name.replace("'", "''")
-                    sql = "INSERT INTO account_invoice (type, state, sent, partner_id, account_id, amount_untaxed, amount_untaxed_signed, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, reference_type, create_date, write_date) VALUES('out_invoice', 'draft', 'f', "+str(partner_id)+", 281, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', 1, 1, 1, 't', '0.00', '0.00', '0.00', 2, '"+name+"', 'none', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+                if infos is not None:
+                    for key in infos:
+                        if isinstance(infos[key], str):
+                            infos[key] = infos[key].replace("'", "''")
+                    sql = "UPDATE membership_membership_line SET "
+                    i=1
+                    for key in infos:
+                        if (i < len(infos)):
+                            sql += key+"='"+str(infos[key])+"'," 
+                        else:
+                            sql += key+"='"+str(infos[key])+"' "
+                        i=i+1
+                    sql += "WHERE id='"+str(membership_id)+"';"
                     webLogger.debug(LOG_HEADER+" "+sql)
                     cursor.execute(sql)
-                    id_of_new_row = cursor.fetchone()[0]
                     connection.commit()
-                    return id_of_new_row
+                    return cursor.lastrowid
         finally:
             connection.close()
+# def createAccountMoveAdhCompl(amount):
+#     webLogger.info(LOG_HEADER+" createAccountMoveAdhCompl")
+#     connection = connect()
+#     if (connection != None):
+#         try:
+#             with connection.cursor() as cursor:
+#                 now = datetime.now()
+#                 infos = getOdooLastInvoice()
+#                 lastinvoice = infos[3]
+#                 res = re.match('FAC/(\d{4})/(\d{4})/(\d{2})', lastinvoice)
+#                 invoiceid = int(res.group(2))+1
+#                 moveid = int(res.group(3))+1
+#                 yearstr = now.strftime("%Y")
+#                 dt_string = now.strftime("%Y-%m-%d")
+#                 name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
+#                 ref =  str(name)+'/'+str(moveid)
+#                 sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
+#                 #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+#                 #print(sql)
+#                 webLogger.debug(LOG_HEADER+" "+sql)
+#                 cursor.execute(sql)
+#                 move_id = cursor.fetchone()[0]
+#                 updateAccountInvoice(name, ref, move_id)
+#                 connection.commit()
+#                 #return id_of_new_row
+#                 return ""
+#         finally:
+#             connection.close()
 
-def createAccountInvoiceLine2022(partner_id, amount, invoice_id):
-    webLogger.info(LOG_HEADER+" createAccountInvoiceLine2022")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                if partner_id is not None:
-                    now = datetime.now()
-                    sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh2022] Adh2022', '10', "+str(invoice_id)+", 1, 2, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                    webLogger.debug(LOG_HEADER+" "+sql)
-                    cursor.execute(sql)
-                    id_of_new_row = cursor.fetchone()[0]
-                    connection.commit()
-                    return id_of_new_row
-        finally:
-            connection.close()
-
-def createAccountInvoiceLine(partner_id, amount, invoice_id):
-    webLogger.info(LOG_HEADER+" createAccountInvoiceLine")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                if partner_id is not None:
-                    now = datetime.now()
-                    sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                    webLogger.debug(LOG_HEADER+" "+sql)
-                    cursor.execute(sql)
-                    id_of_new_row = cursor.fetchone()[0]
-                    connection.commit()
-                    return id_of_new_row
-        finally:
-            connection.close()
-
-def createAccountInvoiceLineAdhCompl(partner_id, amount, invoice_id):
-    webLogger.info(LOG_HEADER+" createAccountInvoiceLineAdhCompl")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                if partner_id is not None:
-                    now = datetime.now()
-                    sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('Adh compl', '10', "+str(invoice_id)+", 1, 4, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                    webLogger.debug(LOG_HEADER+" "+sql)
-                    cursor.execute(sql)
-                    id_of_new_row = cursor.fetchone()[0]
-                    connection.commit()
-                    return id_of_new_row
-        finally:
-            connection.close()
-
-def createAccountMove(amount):
-    webLogger.info(LOG_HEADER+" createAccountMove")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                now = datetime.now()
-                infos = getOdooLastInvoice()
-                lastinvoice = infos[3]
-                res = re.match('FAC/(\d{4})/(\d{4})/(\d{2})', lastinvoice)
-                invoiceid = int(res.group(2))+1
-                moveid = int(res.group(3))+1
-                yearstr = now.strftime("%Y")
-                dt_string = now.strftime("%Y-%m-%d")
-                name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
-                ref =  str(name)+'/'+str(moveid)
-                sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
-                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                #print(sql)
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                move_id = cursor.fetchone()[0]
-                updateAccountInvoice(name, ref, move_id)
-                connection.commit()
-                #return id_of_new_row
-                return ""
-        finally:
-            connection.close()
-
-def createAccountMoveAdhCompl(amount):
-    webLogger.info(LOG_HEADER+" createAccountMoveAdhCompl")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                now = datetime.now()
-                infos = getOdooLastInvoice()
-                lastinvoice = infos[3]
-                res = re.match('FAC/(\d{4})/(\d{4})/(\d{2})', lastinvoice)
-                invoiceid = int(res.group(2))+1
-                moveid = int(res.group(3))+1
-                yearstr = now.strftime("%Y")
-                dt_string = now.strftime("%Y-%m-%d")
-                name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
-                ref =  str(name)+'/'+str(moveid)
-                sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
-                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                #print(sql)
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                move_id = cursor.fetchone()[0]
-                updateAccountInvoice(name, ref, move_id)
-                connection.commit()
-                #return id_of_new_row
-                return ""
-        finally:
-            connection.close()
-
-def updateAccountInvoice(invoiceid, moveid, amount):
-    webLogger.info(LOG_HEADER+" updateAccountInvoice")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                now = datetime.now()
-                dt_string = now.strftime("%Y-%m-%d")
-                name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
-                ref =  str(name)+'/'+str(moveid)
-                sql = "UPDATE account_invoice SET WHERE "
-                #sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
+# def updateAccountInvoice(invoiceid, moveid, amount):
+#     webLogger.info(LOG_HEADER+" updateAccountInvoice")
+#     connection = connect()
+#     if (connection != None):
+#         try:
+#             with connection.cursor() as cursor:
+#                 now = datetime.now()
+#                 dt_string = now.strftime("%Y-%m-%d")
+#                 name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
+#                 ref =  str(name)+'/'+str(moveid)
+#                 sql = "UPDATE account_invoice SET WHERE "
+#                 #sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
                 
-                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                print(sql)
-                webLogger.debug(LOG_HEADER+" "+sql)
-                #cursor.execute(sql)
-                #id_of_new_row = cursor.fetchone()[0]
-                connection.commit()
-                #return id_of_new_row
-                return ""
-        finally:
-            connection.close()
-#INSERT INTO account_invoice(type, number, move_name, reference, state, sent, date_invoice, date_due, partner_id, date, account_id, move_id, amount_untaxed, amount_untaxed_signed, amount_tax, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, create_date, write_date) values('out_invoice', number, number, number, 'open', 'f', datetoday, datetoday, partner_id, datetoday, '281', move_id, '6.00', '6.00', '0.00', '6.00', '6.00', '6.00', 1, 1, 1, 'f', '6.00', '6.00', '6.00', 2, 'ROCHE Guillaume', "+str(now)+"', '"+str(now)+"');"
+#                 #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
+#                 print(sql)
+#                 webLogger.debug(LOG_HEADER+" "+sql)
+#                 #cursor.execute(sql)
+#                 #id_of_new_row = cursor.fetchone()[0]
+#                 connection.commit()
+#                 #return id_of_new_row
+#                 return ""
+#         finally:
+#             connection.close()
+# #INSERT INTO account_invoice(type, number, move_name, reference, state, sent, date_invoice, date_due, partner_id, date, account_id, move_id, amount_untaxed, amount_untaxed_signed, amount_tax, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, create_date, write_date) values('out_invoice', number, number, number, 'open', 'f', datetoday, datetoday, partner_id, datetoday, '281', move_id, '6.00', '6.00', '0.00', '6.00', '6.00', '6.00', 1, 1, 1, 'f', '6.00', '6.00', '6.00', 2, 'ROCHE Guillaume', "+str(now)+"', '"+str(now)+"');"
 
 def connect():
     """ Connect to the PostgreSQL database server """
@@ -647,9 +773,14 @@ def postMembership():
             webLogger.error(LOG_HEADER + '[/postMembership] expected data not found : '+arg)
             return "404"
     partner_id = getOdooAdhId(json_data['email'])
-    invoice_id = createAccountInvoice(partner_id, json_data['amount'], json_data['name'])
-    account_invoice_line = createAccountInvoiceLine(partner_id, json_data['amount'], invoice_id)
-    createMembershipLine(partner_id, account_invoice_line, json_data['amount'])
+    move_id = createAccountMove(partner_id, json_data['name'])
+    moveline_id = createAccountMoveLine1(move_id, json_data['amount'])
+    createAccountMoveLineAccountTaxRel(moveline_id)
+    createMembershipLine(partner_id, moveline_id, json_data['amount'])
+    createAccountMoveLine2(move_id, json_data['amount'])
+    #invoice_id = createAccountInvoice(partner_id, json_data['amount'], json_data['name'])
+    #account_invoice_line = createAccountInvoiceLine(partner_id, json_data['amount'], invoice_id)
+    #createMembershipLine(partner_id, account_invoice_line, json_data['amount'])
     infos = {
         "membership_state": "waiting"
     }

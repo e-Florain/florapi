@@ -481,6 +481,7 @@ def getAdhpros():
         "detailed_activity": "",
         "membership_state": "",
         "account_cyclos": "",
+        "prvlt_sepa": "",
         "write_date": ""
     }
     list_adhpros = []
@@ -523,6 +524,7 @@ def getAdhs():
         "orga_choice": "",
         "accept_newsletter": "",
         "changeeuros": "",
+        "prvlt_sepa": "",
         "write_date": ""
     }
     list_adhs = []
@@ -558,6 +560,7 @@ def getAssos():
         "phone": "",
         "detailed_activity": "",
         "membership_state": "",
+        "prvlt_sepa": "",
         "account_cyclos": ""
     }
     list_assos = []

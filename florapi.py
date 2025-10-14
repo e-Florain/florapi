@@ -170,6 +170,20 @@ def getOdooAssos(filters):
         finally:
             connection.close()
 
+def getOdooMemberships(partner):
+    webLogger.info(LOG_HEADER+" getOdooMemberships")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * from membership_membership_line where partner="+partner
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL
+        finally:
+            connection.close()
+
 def getFreeOdooRef():
     webLogger.info(LOG_HEADER+" getFreeOdooRef")
     connection = connect()
@@ -478,6 +492,7 @@ def getAdhpros():
         "email": "",
         "contact_email": "",
         "phone": "",
+        "is_organization": "",
         "detailed_activity": "",
         "membership_state": "",
         "account_cyclos": "",
@@ -601,6 +616,15 @@ def getFreeRef():
     webLogger.info(LOG_HEADER + '[/getFreeRef] GET')
     ref = getFreeOdooRef()
     return jsonify(ref)
+
+@app.route('/getMemberships', methods=['GET'])
+@require_appkey
+@swag_from("api/getMemberships.yml")
+def getMemberships():
+    webLogger.info(LOG_HEADER + '[/getMemberships] GET')
+    args = request.args.to_dict()
+    memberships = getOdooMemberships(args['partner'])
+    return jsonify(memberships)
 
 @app.route('/postAdhs', methods=['POST'])
 @require_appkey

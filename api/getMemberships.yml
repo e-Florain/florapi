@@ -1,0 +1,24 @@
+summary: "Get Memberships"
+description: "Récupère les adhésions d'un adhérent"
+produces:
+- "application/json"
+parameters:
+- name: partnerid
+  in: query
+  type: string
+  description: partnerid
+responses:
+  200:
+    description: "Success"
+    schema:
+      type: "object"
+      properties:
+        data:
+          type: "object"
+        status:
+          type: "string"
+        message:
+          type: "string"
+ 
+  400:
+    description: "Same response is for 202, 400"

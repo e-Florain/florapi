@@ -20,6 +20,20 @@ import config as cfg
 from flasgger import Swagger, LazyString, LazyJSONEncoder
 from flasgger import swag_from
 
+# --- CONFIGURATION à adapter ---
+ODOO_PATH = '/opt/odoo18/odoo18'          # chemin vers dossier odoo (avec odoo/__init__.py)
+custom_addons = '/opt/odoo18/odoo18/custom-addons'
+DB_NAME = 'ou18'                              # nom de ta base de données Odoo
+DB_USER = 'odoo18'
+# --- Ajout du chemin Odoo au PYTHONPATH ---
+sys.path.append(ODOO_PATH)
+sys.path.append(os.path.dirname(ODOO_PATH))
+
+import odoo
+import odoo.modules.registry
+from odoo import api, SUPERUSER_ID
+import odoo.service.server as server
+
 LOG_HEADER = " [" + __file__ + "] - "
 p = re.compile("\w+(\d)")
 LOG_PATH = os.path.dirname(os.path.abspath(__file__)) + '/log/'
@@ -31,6 +45,14 @@ fileHandler = RotatingFileHandler("{0}/{1}.log".format(LOG_PATH, 'florapi'), max
                                   backupCount=1500)
 fileHandler.setFormatter(logFormatter)
 webLogger.addHandler(fileHandler)
+
+odoo.tools.config['db_host'] = 'localhost'
+odoo.tools.config['db_name'] = cfg.db['name']
+odoo.tools.config['db_user'] = cfg.db['user']
+odoo.tools.config['db_password'] = cfg.db['password']
+odoo.tools.config['without_demo'] = True
+odoo.tools.config['log_level'] = 'info'
+odoo.tools.config['addons_path'] = f'{ODOO_PATH}/addons,{custom_addons}'
 
 app = Flask(__name__)
 
@@ -76,7 +98,6 @@ def require_appkey(view_function):
     def decorated_function(*args, **kwargs):
         with open(os.path.dirname(os.path.abspath(__file__)) + '/api.key', 'r') as apikey:
             key=apikey.read().replace('\n', '')
-        #if request.args.get('key') and request.args.get('key') == key:
         if request.headers.get('x-api-key') and request.headers.get('x-api-key') == key:
             return view_function(*args, **kwargs)
         else:
@@ -85,114 +106,161 @@ def require_appkey(view_function):
 
 def getOdooAdhId(email):
     webLogger.info(LOG_HEADER+" getOdooAdhId")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                sql = "SELECT id from res_partner where email='"+email+"';"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                resultsSQL = cursor.fetchall()
-                return resultsSQL[0][0]
-        finally:
-            connection.close()
+    # Charger les modules de base (corrige le bug "base_registry_signaling")
+    server.load_server_wide_modules()
+
+    # Charger l'environnement ORM
+    registry = odoo.modules.registry.Registry(cfg.db['name'])
+
+    with registry.cursor() as cr:
+        env = api.Environment(cr, SUPERUSER_ID, {})
+        filters2 = [('email', '=', email)]
+        partners = env['res.partner'].search(filters2, limit=1)
+        return partners.id
 
 def getOdooAdhpros(filters):
     webLogger.info(LOG_HEADER+" getOdooAdhpros")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                sql = "SELECT * from res_partner where is_company='t' and active='t'"
-                for x, y in filters.items():
-                    if (x == "name"):
-                        sql += " and upper("+x+") like upper('%"+y+"%')"
-                    elif ((x == "email") or (x == "contact_email")):
-                        sql += " and (upper(email) like upper('%"+y+"%')) or "
-                        sql += "(upper(contact_email) like upper('%"+y+"%'))"
-                    else:
-                        sql += " and "+x+"='"+y+"'"
-                sql += ";"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                resultsSQL = cursor.fetchall()
+    # Charger les modules de base (corrige le bug "base_registry_signaling")
+    server.load_server_wide_modules()
 
-                cursor.execute("SELECT * from res_partner LIMIT 0")
-                colnames = [desc[0] for desc in cursor.description]
-                return (colnames, resultsSQL)
-        finally:
-            connection.close()
+    # Charger l'environnement ORM
+    registry = odoo.modules.registry.Registry(cfg.db['name'])
+
+    with registry.cursor() as cr:
+        env = api.Environment(cr, SUPERUSER_ID, {})
+        filters2 = [('is_company', '=', True)]
+        for x, y in filters.items():
+            if (y=="'t'"):
+                filters2.append((x, '=', True))
+            elif (y=="'f'"):
+                filters2.append((x, '=', False))
+            else:
+                filters2.append((x, 'like', y.upper()))
+        partners = env['res.partner'].search(filters2)
+
+        data = partners.read([
+            'name', 
+            'email',
+            'contact_email', 
+            'street', 
+            'zip', 
+            'city', 
+            'phone', 
+            'is_organization',
+            'membership_state', 
+            'membership_start', 
+            'membership_stop', 
+            'account_cyclos',
+            'orga_choice',
+            'detailed_activity',
+            'currency_exchange_office',
+            'changeeuros',
+            'prvlt_sepa',
+            'write_date'
+        ])
+        json_output = json.dumps(data, indent=4, default=str)
+        return json_output
 
 def getOdooAdhs(filters):
     webLogger.info(LOG_HEADER+" getOdooAdhs")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                sql = "SELECT * from res_partner where is_company='f' and active='t'"
-                #print(filters)
-                for x, y in filters.items():
-                    if ((x == "lastname") or (x == "firstname") or (x == "email")):
-                        sql += " and upper("+x+") like upper('%"+y+"%')"
-                    else:
-                        sql += " and "+x+"='"+y+"'"
-                sql += ";"
-                cursor.execute(sql)
-                webLogger.debug(LOG_HEADER+" "+sql)
-                resultsSQL = cursor.fetchall()
-                cursor.execute("SELECT * from res_partner LIMIT 0")
-                colnames = [desc[0] for desc in cursor.description]
-                return (colnames, resultsSQL)
-        finally:
-            connection.close()
+     # Charger les modules de base (corrige le bug "base_registry_signaling")
+    server.load_server_wide_modules()
+
+    # Charger l'environnement ORM
+    registry = odoo.modules.registry.Registry(cfg.db['name'])
+
+    with registry.cursor() as cr:
+        env = api.Environment(cr, SUPERUSER_ID, {})
+        filters2 = [('is_company', '=', False)]
+        for x, y in filters.items():
+            if ((x == "lastname") or (x == "firstname")):
+                filters2.append(('name', 'like', '%'+y.upper()+'%'))
+            else:
+                filters2.append((x, '=', y.upper()))
+        partners = env['res.partner'].search(filters2)
+        
+        #data = partners.read(['name'])
+        data = partners.read([
+            'name', 
+            'email', 
+            'street', 
+            'zip', 
+            'city', 
+            'phone', 
+            'ref', 
+            'membership_state', 
+            'membership_start', 
+            'membership_stop', 
+            'account_cyclos',
+            'orga_choice',
+            'accept_newsletter',
+            'changeeuros',
+            'prvlt_sepa',
+            'write_date'
+        ])
+        json_output = json.dumps(data, indent=4, default=str)
+        return json_output
 
 def getOdooAssos(filters):
     webLogger.info(LOG_HEADER+" getOdooAssos")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                sql = "SELECT * from res_partner where is_company='t' and active='t' and is_organization='t' order by name"
-                #print(filters)
-                for x, y in filters.items():
-                    if ((x == "name") or (x == "email")):
-                        sql += " and upper("+x+") like upper('%"+y+"%')"
-                    else:
-                        sql += " and "+x+"='"+y+"'"
-                sql += ";"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                resultsSQL = cursor.fetchall()
+    # Charger les modules de base (corrige le bug "base_registry_signaling")
+    server.load_server_wide_modules()
 
-                cursor.execute("SELECT * from res_partner LIMIT 0")
-                colnames = [desc[0] for desc in cursor.description]
-                return (colnames, resultsSQL)
-        finally:
-            connection.close()
+    # Charger l'environnement ORM
+    registry = odoo.modules.registry.Registry(cfg.db['name'])
+
+    with registry.cursor() as cr:
+        env = api.Environment(cr, SUPERUSER_ID, {})
+        filters2 = [('is_company', '=', True), ('active', '=', True), ('is_organization', '=', True)]
+        for x, y in filters.items():
+            if (y=="'t'"):
+                filters2.append((x, '=', True))
+            elif (y=="'f'"):
+                filters2.append((x, '=', False))
+            else:
+                filters2.append((x, 'like', y.upper()))
+        partners = env['res.partner'].search(filters2)
+
+        data = partners.read([
+            'name', 
+            'email',
+            'contact_email', 
+            'street', 
+            'zip', 
+            'city', 
+            'phone', 
+            'is_organization',
+            'membership_state', 
+            'membership_start', 
+            'membership_stop', 
+            'account_cyclos',
+            'orga_choice',
+            'detailed_activity',
+            'currency_exchange_office',
+            'changeeuros',
+            'prvlt_sepa',
+            'write_date'
+        ])
+        json_output = json.dumps(data, indent=4, default=str)
+        return json_output
 
 def getFreeOdooRef():
     webLogger.info(LOG_HEADER+" getFreeOdooRef")
-    connection = connect()
     firstRef = 10000
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                sql = "SELECT ref from res_partner where is_company='f' and active='t' order by ref;"
-                cursor.execute(sql)
-                ids = []
-                resultsSQL = cursor.fetchall()
-                for id in resultsSQL:
-                    ids.append(id[0])
-                found=False
-                ref = firstRef
-                while found == False:
-                    if (str(ref) not in ids):
-                        found = True
-                    else:
-                        ref=ref+1
-                return ref
-        finally:
-            connection.close()
+    # Charger les modules de base (corrige le bug "base_registry_signaling")
+    server.load_server_wide_modules()
+
+    # Charger l'environnement ORM
+    registry = odoo.modules.registry.Registry(cfg.db['name'])
+
+    with registry.cursor() as cr:
+        env = api.Environment(cr, SUPERUSER_ID, {})
+        filters2 = [('is_company', '=', False), ('active', '=', True), ('ref', '!=', False)]
+        partners = env['res.partner'].search(filters2)
+
+        numeric_refs = [int(p.ref) for p in partners if p.ref.isdigit()]
+        max_ref = max(numeric_refs) if numeric_refs else None
+        return max_ref+1
 
 # def getOdooAccountInvoiceSeq():
 #     webLogger.info(LOG_HEADER+" getOdooAccountInvoiceSeq")
@@ -208,6 +276,7 @@ def getFreeOdooRef():
 #         finally:
 #             connection.close()
 
+"""
 def getOdooLastInvoice():
     webLogger.info(LOG_HEADER+" getOdooLastInvoice ")
     connection = connect()
@@ -231,265 +300,109 @@ def getNameForInvoice():
     (lastnum,prefix) = getOdooLastInvoice()
     num = int(lastnum)+1
     return prefix+'{:0>5}'.format(num)
+"""
 
 def createOdooAdhs(email, infos):
     webLogger.info(LOG_HEADER+" createOdooAdhs")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                for key in infos:
-                    if isinstance(infos[key], str):
-                        infos[key] = infos[key].replace("'", "''")
-                name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
-                now = datetime.now()
-                dt_string = now.strftime("%d/%m/%Y %H:%M:%S.%f")
-                # STANDALONE partner
-                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, ref, phone, email, active, lang, tz, type, is_main_profile, is_company, is_published, to_renew, is_volunteer, currency_exchange_office, is_adhered_member, free_member, contact_type, membership_state, create_uid, write_uid, street, zip, city, orga_choice, account_cyclos, accept_newsletter, changeeuros, team_id, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', '"+str(infos['ref'])+"', '"+infos['phone']+"', '"+email+"', 't', 'fr_FR', 'Europe/Paris', 'contact', 't', 'f', 'f', 'f', 'f', 'f', 'f', 'f', 'standalone', 'none', 2, 2, '"+infos['street']+"', '"+infos['zip']+"', '"+infos['city']+"', '"+infos['orga_choice']+"', '"+infos['account_cyclos']+"', '"+infos['accept_newsletter']+"', '"+infos['changeeuros']+"', 1, '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                # pour les 2 id créées insérer la ligne suivante
-                #INSERT INTO partner_favorite_user_rel (partner_id, user_id) VALUES (37, 2);
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                id_of_new_row = cursor.fetchone()[0]
-                connection.commit()
-                
-                # ATTACHED partner
-                sql = "INSERT INTO res_partner (name, display_name, firstname, lastname, active, lang, tz, type, is_company, is_published, is_adhered_member, free_member, contact_type, contact_id, membership_state, create_uid, write_uid, create_date, write_date) VALUES ('"+name+"', '"+name+"', '"+infos['firstname']+"', '"+infos['lastname']+"', 't', 'fr_FR', 'Europe/Paris', 'other', 'f', 'f', 'f', 't', 'attached','"+str(id_of_new_row)+"','free', 2, 2, '"+str(now)+"', '"+str(now)+"');"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                connection.commit()
-                return cursor.lastrowid
-        finally:
-            connection.close()
+    for key in infos:
+        if isinstance(infos[key], str):
+            infos[key] = infos[key].replace("'", "''")
+    name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
+    
+    datas = {
+        'name': name,
+        'email': email,
+        'phone': infos['phone'],
+        'account_cyclos': infos['account_cyclos'],
+        'street': infos['street'],
+        'zip': infos['zip'],
+        'city': infos['city'],
+        'is_company': 'f',
+        "ref": infos['ref'],
+        "changeeuros": infos['changeeuros'],
+        "orga_choice": infos['orga_choice'],
+        "accept_newsletter": infos['accept_newsletter']
+    }
+
+    # Charger les modules de base (corrige le bug "base_registry_signaling")
+    server.load_server_wide_modules()
+
+    # Charger l'environnement ORM
+    registry = odoo.modules.registry.Registry(cfg.db['name'])
+
+    with registry.cursor() as cr:
+        env = api.Environment(cr, SUPERUSER_ID, {})
+
+        datas['country_id'] =  env.ref('base.fr').id
+        datas['company_type'] = 'person'
+        partner = env['res.partner'].create(datas)
+
+        print(f"Adhérent créé : {partner.name} (ID {partner.id})")
+        return partner
 
 def updateOdooAdhs(email, infos):
     webLogger.info(LOG_HEADER+" updateOdooAdhs")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                if infos is not None:
-                    for key in infos:
-                        if isinstance(infos[key], str):
-                            infos[key] = infos[key].replace("'", "''")
-                    sql = "UPDATE res_partner SET "
-                    i=1
-                    for key in infos:
-                        if (i < len(infos)):
-                            sql += key+"='"+infos[key]+"'," 
-                        else:
-                            sql += key+"='"+infos[key]+"' "
-                        i=i+1
-                    sql += "WHERE email='"+email+"';"
-                    webLogger.debug(LOG_HEADER+" "+sql)
-                    cursor.execute(sql)
-                    connection.commit()
-                    return cursor.lastrowid
-        finally:
-            connection.close()
+    id = getOdooAdhId(email)
+    # Charger les modules de base (corrige le bug "base_registry_signaling")
+    server.load_server_wide_modules()
 
+    # Charger l'environnement ORM
+    registry = odoo.modules.registry.Registry(cfg.db['name'])
 
+    with registry.cursor() as cr:
+        env = api.Environment(cr, SUPERUSER_ID, {})
+        partner = env['res.partner'].browse(id)
+        partner.write(infos)
+        #partner.write({
+        #    'name': 'Nom mis à jour',
+        #    'email': 'nouveau@mail.com',
+        #})
+        return partner
 
-# def createAccountInvoice(partner_id, amount, name):
-#     webLogger.info(LOG_HEADER+ " createAccountInvoice")
-#     connection = connect()
-#     if (connection != None):
-#         try:
-#             with connection.cursor() as cursor:
-#                 if partner_id is not None:
-#                     now = datetime.now()
-#                     name = name.replace("'", "''")
-#                     sql = "INSERT INTO account_invoice (type, state, sent, partner_id, account_id, amount_untaxed, amount_untaxed_signed, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, reference_type, create_date, write_date) VALUES('out_invoice', 'draft', 'f', "+str(partner_id)+", 281, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', 1, 1, 1, 't', '0.00', '0.00', '0.00', 2, '"+name+"', 'none', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-#                     webLogger.debug(LOG_HEADER+" "+sql)
-#                     cursor.execute(sql)
-#                     id_of_new_row = cursor.fetchone()[0]
-#                     connection.commit()
-#                     return id_of_new_row
-#         finally:
-#             connection.close()
-
-# def createAccountInvoiceLine2022(partner_id, amount, invoice_id):
-#     webLogger.info(LOG_HEADER+" createAccountInvoiceLine2022")
-#     connection = connect()
-#     if (connection != None):
-#         try:
-#             with connection.cursor() as cursor:
-#                 if partner_id is not None:
-#                     now = datetime.now()
-#                     sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh2022] Adh2022', '10', "+str(invoice_id)+", 1, 2, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-#                     webLogger.debug(LOG_HEADER+" "+sql)
-#                     cursor.execute(sql)
-#                     id_of_new_row = cursor.fetchone()[0]
-#                     connection.commit()
-#                     return id_of_new_row
-#         finally:
-#             connection.close()
-
-# def createAccountInvoiceLine(partner_id, amount, invoice_id):
-#     webLogger.info(LOG_HEADER+" createAccountInvoiceLine")
-#     connection = connect()
-#     if (connection != None):
-#         try:
-#             with connection.cursor() as cursor:
-#                 if partner_id is not None:
-#                     now = datetime.now()
-#                     sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-#                     webLogger.debug(LOG_HEADER+" "+sql)
-#                     cursor.execute(sql)
-#                     id_of_new_row = cursor.fetchone()[0]
-#                     connection.commit()
-#                     return id_of_new_row
-#         finally:
-#             connection.close()
-
-# def createAccountInvoiceLineAdhCompl(partner_id, amount, invoice_id):
-#     webLogger.info(LOG_HEADER+" createAccountInvoiceLineAdhCompl")
-#     connection = connect()
-#     if (connection != None):
-#         try:
-#             with connection.cursor() as cursor:
-#                 if partner_id is not None:
-#                     now = datetime.now()
-#                     sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('Adh compl', '10', "+str(invoice_id)+", 1, 4, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-#                     webLogger.debug(LOG_HEADER+" "+sql)
-#                     cursor.execute(sql)
-#                     id_of_new_row = cursor.fetchone()[0]
-#                     connection.commit()
-#                     return id_of_new_row
-#         finally:
-#             connection.close()
-
-def createAccountMove(partner_id, display_name, amount):
+def createMembership(partner_id, amount):
     webLogger.info(LOG_HEADER+" createAccountMove")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                now = datetime.now()
-                #yearstr = now.strftime("%Y")
-                dt_string = now.strftime("%Y-%m-%d")
-                #name = getNameForInvoice()
-                #sql = "INSERT INTO account_move (name, date, journal_id, currency_id, state, move_type, auto_post, amount_untaxed, amount_total, amount_residual, amount_untaxed_signed, amount_total_signed, amount_total_in_currency_signed, amount_residual_signed, amount_tax, amount_tax_signed, company_id, create_date, write_date) VALUES ('"+name+"', '"+dt_string+"', 1, 1, 'draft', 'out_invoice', 'no', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '0.00', '0.00', 1, '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                #amount_untaxed, amount_total, amount_residual, amount_untaxed_signed, amount_total_signed, amount_total_in_currency_signed, amount_residual_signed, amount_tax, amount_tax_signed,
-                # INSERT INTO "account_move" ("auto_post", "company_id", "create_date", "create_uid", "currency_id", "date", "fiscal_position_id", "invoice_incoterm_id", "invoice_payment_term_id", "invoice_user_id", "is_move_sent", "journal_id", "move_type", "partner_id", "partner_shipping_id", "state", "write_date", "write_uid") VALUES ('no', 1, '2025-01-17 21:49:38.765862', 2, 1, '2025-01-17', NULL, NULL, NULL, 2, false, 1, 'out_invoice', partnerid, partnerid, 'draft', '2025-01-17 21:49:38.765862', 2) RETURNING "id"
-                #sql = "INSERT INTO account_move (auto_post, company_id, create_date, create_uid, currency_id, date, fiscal_position_id, invoice_incoterm_id, invoice_payment_term_id, invoice_user_id, is_move_sent, journal_id, move_type, partner_id, partner_shipping_id, state, write_date, write_uid)"
-                name = display_name.replace("'", "''")
-                
-                sql = "INSERT INTO account_move (auto_post, company_id, create_date, create_uid, currency_id, date, fiscal_position_id, invoice_incoterm_id, invoice_payment_term_id, invoice_user_id, is_move_sent, journal_id, move_type, partner_id, partner_shipping_id, state, amount_untaxed, amount_total, amount_residual, amount_untaxed_signed, amount_total_signed, amount_total_in_currency_signed, amount_residual_signed, amount_tax, amount_tax_signed, payment_state, always_tax_exigible, invoice_date_due, invoice_partner_display_name, write_date, write_uid)"
-                sql += "VALUES ('no', 1, '"+str(now)+"', 2, 1, '"+dt_string+"', NULL, NULL, NULL, 2, false, 1, 'out_invoice', '"+str(partner_id)+"', '"+str(partner_id)+"', 'draft','"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '0.00', '0.00', 'not_paid', false, '"+dt_string+"', '"+display_name+"', '"+str(now)+"', 2) RETURNING id;"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                move_id = cursor.fetchone()[0]
-                #print(move_id)
-                #updateAccountInvoice(name, ref, move_id)
-                connection.commit()
-                #return id_of_new_row
-                return move_id
-        finally:
-            connection.close()
+    # Charger les modules de base (corrige le bug "base_registry_signaling")
+    server.load_server_wide_modules()
 
-def createAccountMoveLine1(move_id, amount):
-    webLogger.info(LOG_HEADER+" createAccountMoveLine")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                now = datetime.now()
-                #yearstr = now.strftime("%Y")
-                dt_string = now.strftime("%Y-%m-%d")
-                #name = getNameForInvoice()
-                #sql = "INSERT INTO account_move (name, date, journal_id, currency_id, state, move_type, auto_post, amount_untaxed, amount_total, amount_residual, amount_untaxed_signed, amount_total_signed, amount_total_in_currency_signed, amount_residual_signed, amount_tax, amount_tax_signed, company_id, create_date, write_date) VALUES ('"+name+"', '"+dt_string+"', 1, 1, 'draft', 'out_invoice', 'no', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '0.00', '0.00', 1, '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                #print(sql)
-                # INSERT INTO "account_move" ("auto_post", "company_id", "create_date", "create_uid", "currency_id", "date", "fiscal_position_id", "invoice_incoterm_id", "invoice_payment_term_id", "invoice_user_id", "is_move_sent", "journal_id", "move_type", "partner_id", "partner_shipping_id", "state", "write_date", "write_uid") VALUES ('no', 1, '2025-01-17 21:49:38.765862', 2, 1, '2025-01-17', NULL, NULL, NULL, 2, false, 1, 'out_invoice', partnerid, partnerid, 'draft', '2025-01-17 21:49:38.765862', 2) RETURNING "id"
-                #sql = "INSERT INTO account_move (auto_post, company_id, create_date, create_uid, currency_id, date, fiscal_position_id, invoice_incoterm_id, invoice_incoterm_id, invoice_payment_term_id, invoice_user_id, is_move_sent, journal_id, move_type, partner_id, partner_shipping_id, state, write_date, write_uid) VALUES ('no', 1, '"+str(now)+"', 2, 1, '"+dt_string+"', NULL, NULL, NULL, 2, false, 1, 'out_invoice', '"+partnerid+"', '"+partnerid+"', 'draft', '"+str(now)+"', 2) RETURNING id;"
-                #INSERT INTO "account_move_line" ("account_id", "amount_currency", "balance", "blocked", "company_currency_id", "company_id", "create_date", "create_uid", "credit", "currency_id", "debit", "discount", "display_type", "journal_id", "move_id", "name", "partner_id", "price_unit", "product_id", "product_uom_id", "quantity", "sequence", "tax_group_id", "tax_line_id", "write_date", "write_uid") VALUES (660, '0.00', '0.00', false, 1, 1, '2025-01-20 10:26:46.957645', 2, '0.00', 1, '0.00', '0.00', 'product', 1, 16, 'Adh', NULL, '10.00', 1, 1, '1.00', 100, NULL, NULL, '2025-01-20 10:26:46.957645', 2) RETURNING "id"
-                sql = "INSERT INTO account_move_line(account_id, amount_currency, balance, blocked, company_currency_id, company_id, create_date, create_uid, credit, currency_id, debit, discount, display_type, journal_id, move_id, name, partner_id, price_unit, product_id, product_uom_id, quantity, sequence, tax_group_id, tax_line_id, write_date, write_uid)"
-                sql += "VALUES (660, '0.00', '0.00', false, 1, 1, '"+str(now)+"', 2, '0.00', 1, '0.00', '0.00', 'product', 1, '"+str(move_id)+"', 'Adh', NULL, '"+str(amount)+"', 1, 1, '1.00', 100, NULL, NULL, '"+str(now)+"', 2) RETURNING id;"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                moveline_id = cursor.fetchone()[0]
-                #print(moveline_id)
-                #updateAccountInvoice(name, ref, move_id)
-                connection.commit()
-                #return id_of_new_row
-                return moveline_id
-        finally:
-            connection.close()
+    # Charger l'environnement ORM
+    registry = odoo.modules.registry.Registry(cfg.db['name'])
 
-def createAccountMoveLine2(move_id, amount):
-    webLogger.info(LOG_HEADER+" createAccountMoveLine")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                now = datetime.now()
-                #yearstr = now.strftime("%Y")
-                dt_string = now.strftime("%Y-%m-%d")
-                #INSERT INTO "account_move_line" ("account_id", "amount_currency", "balance", "blocked", "company_currency_id", "company_id", "create_date", "create_uid", "credit", "currency_id", "date_maturity", "debit", "discount", "discount_date", "discount_percentage", "display_type", "journal_id", "move_id", "name", "partner_id", "price_unit", "product_uom_id", "quantity", "sequence", "tax_group_id", "tax_line_id", "write_date", "write_uid") 
-                                     #VALUES (303, '21.00', '21.00', false, 1, 1, '2025-01-17 21:49:38.765862', 2, '0.00', 1, '2025-01-17', '21.00', '0.00', NULL, 0.0, 'payment_term', 1, 14, '', NULL, '0.00', NULL, '0.00', 12000, NULL, NULL, '2025-01-17 21:49:38.765862', 2) RETURNING "id"
-                sql = "INSERT INTO account_move_line(account_id, amount_currency, balance, blocked, company_currency_id, company_id, create_date, create_uid, credit, currency_id, date_maturity, debit, discount, discount_date, discount_percentage, display_type, journal_id, move_id, name, partner_id, price_unit, product_uom_id, quantity, sequence, tax_group_id, tax_line_id, write_date, write_uid)"
-                sql += "VALUES (303, '"+str(amount)+"', '"+str(amount)+"', false, 1, 1, '"+str(now)+"', 2, '0.00', 1, '"+dt_string+"', '"+str(amount)+"', '0.00', NULL, 0.0, 'payment_term', 1, '"+str(move_id)+"', '', NULL, '0.00', NULL, '0.00', 12000, NULL, NULL, '"+str(now)+"', 2) RETURNING id;"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                moveline_id = cursor.fetchone()[0]
-                #print(moveline_id)
-                #updateAccountInvoice(name, ref, move_id)
-                connection.commit()
-                #return id_of_new_row
-                return moveline_id
-        finally:
-            connection.close()
+    with registry.cursor() as cr:
+        env = api.Environment(cr, SUPERUSER_ID, {})
+        product = env['product.product'].search([('name', '=', 'Adh')], limit=1)
 
-def createAccountMoveLineAccountTaxRel(moveline_id):
-    webLogger.info(LOG_HEADER+" create account_move_line_account_tax_rel")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                now = datetime.now()
-                #yearstr = now.strftime("%Y")
-                dt_string = now.strftime("%Y-%m-%d")
-                
-                #sql = "INSERT INTO account_move_line(account_id, amount_currency, balance, blocked, company_currency_id, company_id, create_date, create_uid, credit, currency_id, debit, discount, display_type, journal_id, move_id, name, partner_id, price_unit, product_id, product_uom_id, quantity, sequence, tax_group_id, tax_line_id, write_date, write_uid)"
-                #sql += "VALUES (660, '0.00', '0.00', false, 1, 1, '"+str(now)+"', 2, '0.00', 1, '0.00', '0.00', 'product', 1, '"+move_id+"', 'Adh', NULL, '"+str(amount)+"', 1, 1, '1.00', 100, NULL, NULL, '"+str(now)+"', 2) RETURNING id;"
-                #INSERT INTO account_move_line_account_tax_rel (account_move_line_id, account_tax_id) VALUES (7, 48) ON CONFLICT DO NOTHING
-                sql = "INSERT INTO account_move_line_account_tax_rel (account_move_line_id, account_tax_id) VALUES('"+str(moveline_id)+"', 48) ON CONFLICT DO NOTHING;"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                #print(moveline_id)
-                #updateAccountInvoice(name, ref, move_id)
-                connection.commit()
-                #return id_of_new_row
-                return ""
-        finally:
-            connection.close()
+        now = datetime.now()
+        invoice_date = now.strftime("%Y-%m-%d")
+        # Créer une facture simulant l’adhésion (si module "account" activé)
+        invoice = env['account.move'].create({
+            'partner_id': partner_id,
+            'move_type': 'out_invoice',
+            'invoice_date': invoice_date,
+            'invoice_line_ids': [(0, 0, {
+                'product_id': product.id,
+                'quantity': 1,
+                'price_unit': amount,
+            })],
+        })
 
-def createMembershipLine(partner_id, moveline_id, amount):
-    webLogger.info(LOG_HEADER+" createMembershipLine")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                if partner_id is not None:
-                    now = datetime.now()
-                    dt_string = now.strftime("%Y-%m-%d")
-                    years_to_add = now.year + 1
-                    dt_string2 = now.replace(year=years_to_add).strftime('%Y-%m-%d')
-                    #sql = "INSERT INTO membership_membership_line (partner, membership_id, date_from, date_to, date, member_price, account_invoice_line, company_id, state, create_date, write_date) VALUES ("+str(partner_id)+", 1, '"+dt_string+"', '"+dt_string2+"', '"+dt_string+"', '"+amount+"', "+str(account_invoice_line)+", 1, 'waiting', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-                    #INSERT INTO "membership_membership_line" ("account_invoice_line", "create_date", "create_uid", "date", "date_from", "date_to", "member_price", "membership_id", "partner", "write_date", "write_uid") VALUES (7, '2025-01-17 21:49:38.765862', 2, '2025-01-17', NULL, NULL, '21.00', 1, 45, '2025-01-17 21:49:38.765862', 2) RETURNING "id"
-                    sql = "INSERT INTO membership_membership_line (account_invoice_line, create_date, create_uid, date, date_from, date_to, member_price, membership_id, partner, write_date, write_uid)"
-                    #VALUES (7, '2025-01-17 21:49:38.765862', 2, '2025-01-17', NULL, NULL, '21.00', 1, 45, '2025-01-17 21:49:38.765862', 2) RETURNING "id"
-                    sql += "VALUES('"+str(moveline_id)+"', '"+str(now)+"', 2, '"+str(dt_string)+"', NULL, NULL, '"+str(amount)+"', 1, '"+str(partner_id)+"', '"+str(now)+"', 2) RETURNING id;"
-                    webLogger.debug(LOG_HEADER+" "+sql)
-                    cursor.execute(sql)
-                    id_of_new_row = cursor.fetchone()[0]
-                    connection.commit()
-                    return id_of_new_row
-        finally:
-            connection.close()
+        now = datetime.now()
+        date1 = now.strftime("%Y-%m-%d")
+        years_to_add = now.year + 1
+        date2 = now.replace(year=years_to_add).strftime('%Y-%m-%d')
 
+        membership_line = env['membership.membership_line'].search([
+            ('partner', '=', partner_id),
+            ('membership_id', '=', product.id),
+            ('account_invoice_id', '=', invoice.id),
+        ], limit=1)
+        
+        membership_line.write({
+            'date_from': date1,
+            'date_to': date2,
+        })
+        return membership_line
+
+"""
 def updateMembershipLine(membership_id, infos):
     webLogger.info(LOG_HEADER+" updateMembershipLine")
     connection = connect()
@@ -515,74 +428,7 @@ def updateMembershipLine(membership_id, infos):
                     return cursor.lastrowid
         finally:
             connection.close()
-# def createAccountMoveAdhCompl(amount):
-#     webLogger.info(LOG_HEADER+" createAccountMoveAdhCompl")
-#     connection = connect()
-#     if (connection != None):
-#         try:
-#             with connection.cursor() as cursor:
-#                 now = datetime.now()
-#                 infos = getOdooLastInvoice()
-#                 lastinvoice = infos[3]
-#                 res = re.match('FAC/(\d{4})/(\d{4})/(\d{2})', lastinvoice)
-#                 invoiceid = int(res.group(2))+1
-#                 moveid = int(res.group(3))+1
-#                 yearstr = now.strftime("%Y")
-#                 dt_string = now.strftime("%Y-%m-%d")
-#                 name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
-#                 ref =  str(name)+'/'+str(moveid)
-#                 sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
-#                 #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-#                 #print(sql)
-#                 webLogger.debug(LOG_HEADER+" "+sql)
-#                 cursor.execute(sql)
-#                 move_id = cursor.fetchone()[0]
-#                 updateAccountInvoice(name, ref, move_id)
-#                 connection.commit()
-#                 #return id_of_new_row
-#                 return ""
-#         finally:
-#             connection.close()
-
-# def updateAccountInvoice(invoiceid, moveid, amount):
-#     webLogger.info(LOG_HEADER+" updateAccountInvoice")
-#     connection = connect()
-#     if (connection != None):
-#         try:
-#             with connection.cursor() as cursor:
-#                 now = datetime.now()
-#                 dt_string = now.strftime("%Y-%m-%d")
-#                 name = 'FAC/'+now.strftime("%Y")+'/'+str(invoiceid)    
-#                 ref =  str(name)+'/'+str(moveid)
-#                 sql = "UPDATE account_invoice SET WHERE "
-#                 #sql = "INSERT INTO account_move (name, ref, date, journal_id, currency_id, state, amount, company_id, matched_percentage, auto_reverse, create_date, write_date) VALUES ('"+name+"', '"+ref+"', '"+dt_string+"', 1, 1, 'posted', '"+amount+"', 1, '0.0', 'f', "+str(now)+"', '"+str(now)+"');"
-                
-#                 #sql = "INSERT INTO account_invoice_line(name, sequence, invoice_id, uom_id, product_id, account_id, price_unit, price_subtotal, price_total, price_subtotal_signed, quantity, discount, company_id, partner_id, currency_id, is_rounding_line, create_date, write_date) VALUES ('[Adh] Adh', '10', "+str(invoice_id)+", 1, 1, 636, '"+amount+"', '"+amount+"', '"+amount+"', '"+amount+"', '1.00', '0.00', 1, "+str(partner_id)+", 1, 'f', '"+str(now)+"', '"+str(now)+"') RETURNING id;"
-#                 print(sql)
-#                 webLogger.debug(LOG_HEADER+" "+sql)
-#                 #cursor.execute(sql)
-#                 #id_of_new_row = cursor.fetchone()[0]
-#                 connection.commit()
-#                 #return id_of_new_row
-#                 return ""
-#         finally:
-#             connection.close()
-# #INSERT INTO account_invoice(type, number, move_name, reference, state, sent, date_invoice, date_due, partner_id, date, account_id, move_id, amount_untaxed, amount_untaxed_signed, amount_tax, amount_total, amount_total_signed, amount_total_company_signed, currency_id, journal_id, company_id, reconciled, residual, residual_signed, residual_company_signed, user_id, vendor_display_name, create_date, write_date) values('out_invoice', number, number, number, 'open', 'f', datetoday, datetoday, partner_id, datetoday, '281', move_id, '6.00', '6.00', '0.00', '6.00', '6.00', '6.00', 1, 1, 1, 'f', '6.00', '6.00', '6.00', 2, 'ROCHE Guillaume', "+str(now)+"', '"+str(now)+"');"
-
-def connect():
-    """ Connect to the PostgreSQL database server """
-    conn = None
-    try:
-        # connect to the PostgreSQL server
-        webLogger.info(LOG_HEADER + '[-] '+'Connecting to the PostgreSQL database...')
-        conn = psycopg2.connect(
-            host="localhost",
-            user=cfg.db['user'],
-            password=cfg.db['password'],
-            database=cfg.db['name'])
-        return conn        
-    except (Exception, psycopg2.DatabaseError) as error:
-        webLogger.error(LOG_HEADER + str(error))
+"""
 
 @app.route('/json/', methods=['POST'])
 @require_appkey
@@ -595,34 +441,8 @@ def put_user():
 def getAdhpros():
     webLogger.info(LOG_HEADER + '[/getAdhpros] GET')
     filters = request.args.to_dict()
-    pgsql_headers = {
-        "id": "",
-        "name": "",
-        "street": "",
-        "zip": "",
-        "city": "",
-        "email": "",
-        "contact_email": "",
-        "phone": "",
-        "detailed_activity": "",
-        "membership_state": "",
-        "account_cyclos": "",
-        "write_date": ""
-    }
-    list_adhpros = []
-    (cols, adhpros) = getOdooAdhpros(filters)
-    i = 0
-    for col in cols:
-        for header in pgsql_headers:
-            if (col == header):
-                pgsql_headers[header] = i
-        i+=1
-    for adhpro in adhpros:
-        adhpros_dict = {}
-        for x, y in pgsql_headers.items():
-            adhpros_dict[x] = adhpro[y]
-        list_adhpros.append(adhpros_dict)
-    return jsonify(list_adhpros)
+    json_partners = getOdooAdhpros(filters)
+    return json_partners
 
 @app.route('/getAdhs', methods=['GET'])
 @require_appkey
@@ -630,41 +450,8 @@ def getAdhpros():
 def getAdhs():
     webLogger.info(LOG_HEADER + '[/getAdhs] GET')
     filters = request.args.to_dict()
-    #print(filters)
-    #print(data['account_cyclos'])
-    pgsql_headers = {
-        "id": "",
-        "firstname": "",
-        "lastname": "",
-        "street": "",
-        "zip": "",
-        "city": "",
-        "ref": "",
-        "email": "",
-        "phone": "",
-        "membership_state": "",
-        "membership_start": "",
-        "membership_stop": "",
-        "account_cyclos": "",
-        "orga_choice": "",
-        "accept_newsletter": "",
-        "changeeuros": "",
-        "write_date": ""
-    }
-    list_adhs = []
-    (cols, adhs) = getOdooAdhs(filters)
-    i = 0
-    for col in cols:
-        for header in pgsql_headers:
-            if (col == header):
-                pgsql_headers[header] = i
-        i+=1
-    for adh in adhs:
-        adhs_dict = {}
-        for x, y in pgsql_headers.items():
-            adhs_dict[x] = adh[y]
-        list_adhs.append(adhs_dict)
-    return jsonify(list_adhs)
+    json_partners = getOdooAdhs(filters)
+    return json_partners
 
 @app.route('/getAssos', methods=['GET'])
 @require_appkey
@@ -672,35 +459,10 @@ def getAdhs():
 def getAssos():
     webLogger.info(LOG_HEADER + '[/getAssos] GET')
     filters = request.args.to_dict()
-    #print(filters)
-    #print(data['account_cyclos'])
-    pgsql_headers = {
-        "id": "",
-        "name": "",
-        "street": "",
-        "zip": "",
-        "city": "",
-        "email": "",
-        "phone": "",
-        "detailed_activity": "",
-        "membership_state": "",
-        "account_cyclos": ""
-    }
-    list_assos = []
-    (cols, assos) = getOdooAssos(filters)
-    i = 0
-    for col in cols:
-        for header in pgsql_headers:
-            if (col == header):
-                pgsql_headers[header] = i
-        i+=1
-    for asso in assos:
-        assos_dict = {}
-        for x, y in pgsql_headers.items():
-            assos_dict[x] = asso[y]
-        list_assos.append(assos_dict)
-    return jsonify(list_assos)
+    assos = getOdooAssos(filters)
+    return assos
 
+"""
 @app.route('/getAccountInvoiceSeq', methods=['GET'])
 @require_appkey
 @swag_from("api/getAccountInvoiceSeq.yml")
@@ -716,6 +478,7 @@ def getLastInvoice():
     webLogger.info(LOG_HEADER + '[/getLastInvoice] GET')
     infos = getOdooLastInvoice()
     return jsonify(infos)
+"""
 
 @app.route('/getFreeRef', methods=['GET'])
 @require_appkey
@@ -754,6 +517,7 @@ def postAdhs():
 def putAdhs():
     webLogger.info(LOG_HEADER + '[/putAdhs] POST')
     json_data = request.get_json(force=True)
+    print(json_data)
     updateOdooAdhs(json_data['email'], json_data['infos'])
     return "200"
 
@@ -773,21 +537,10 @@ def postMembership():
             webLogger.error(LOG_HEADER + '[/postMembership] expected data not found : '+arg)
             return "404"
     partner_id = getOdooAdhId(json_data['email'])
-    move_id = createAccountMove(partner_id, json_data['name'])
-    moveline_id = createAccountMoveLine1(move_id, json_data['amount'])
-    createAccountMoveLineAccountTaxRel(moveline_id)
-    createMembershipLine(partner_id, moveline_id, json_data['amount'])
-    createAccountMoveLine2(move_id, json_data['amount'])
-    #invoice_id = createAccountInvoice(partner_id, json_data['amount'], json_data['name'])
-    #account_invoice_line = createAccountInvoiceLine(partner_id, json_data['amount'], invoice_id)
-    #createMembershipLine(partner_id, account_invoice_line, json_data['amount'])
-    infos = {
-        "membership_state": "waiting"
-    }
-    updateOdooAdhs(json_data['email'], infos)
-    # Update adh to waiting
+    createMembership(partner_id, json_data['amount'])
     return "200"
 
+"""
 @app.route('/postMembershipCompl', methods=['POST'])
 @require_appkey
 @swag_from("api/postMembershipCompl.yml")
@@ -798,9 +551,7 @@ def postMembershipCompl():
         "name",
         "amount"
     }
-    print("test")
     json_data = request.get_json(force=True)
-    print("test2")
     for arg in required_args:
         if arg not in json_data:
             webLogger.error(LOG_HEADER + '[/postMembershipCompl] expected data not found : '+arg)
@@ -810,25 +561,17 @@ def postMembershipCompl():
     invoice_id = createAccountInvoice(partner_id, json_data['amount'], json_data['name'])
     account_invoice_line = createAccountInvoiceLineAdhCompl(partner_id, json_data['amount'], invoice_id)
     return "200"
-
-@app.route('/postInvoice', methods=['POST'])
-#@require_appkey
-@swag_from("api/postInvoice.yml")
-def postInvoice():
-    webLogger.info(LOG_HEADER + '[/postInvoice] POST')
-    print("test")
-    createAccountMove("6.00")
-    return "200"
+"""
 
 addr = '0.0.0.0', 80
-server = wsgi.Server(addr, app)
+serverweb = wsgi.Server(addr, app)
 
 if __name__ == '__main__':
     global session
     session=dict()
     try:
         webLogger.info(LOG_HEADER + '[starting server]')
-        server.start()
+        serverweb.start()
     except KeyboardInterrupt:
         webLogger.info(LOG_HEADER + '[stopping server]')
-        server.stop()
+        serverweb.stop()

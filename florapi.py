@@ -23,8 +23,6 @@ from flasgger import swag_from
 # --- CONFIGURATION à adapter ---
 ODOO_PATH = '/opt/odoo18/odoo18'          # chemin vers dossier odoo (avec odoo/__init__.py)
 custom_addons = '/opt/odoo18/odoo18/custom-addons'
-DB_NAME = 'ou18'                              # nom de ta base de données Odoo
-DB_USER = 'odoo18'
 # --- Ajout du chemin Odoo au PYTHONPATH ---
 sys.path.append(ODOO_PATH)
 sys.path.append(os.path.dirname(ODOO_PATH))
@@ -262,46 +260,6 @@ def getFreeOdooRef():
         max_ref = max(numeric_refs) if numeric_refs else None
         return max_ref+1
 
-# def getOdooAccountInvoiceSeq():
-#     webLogger.info(LOG_HEADER+" getOdooAccountInvoiceSeq")
-#     connection = connect()
-#     if (connection != None):
-#         try:
-#             with connection.cursor() as cursor:
-#                 sql = "SELECT last_value from account_invoice_id_seq;"
-#                 webLogger.debug(LOG_HEADER+" "+sql)
-#                 cursor.execute(sql)
-#                 resultsSQL = cursor.fetchall()
-#                 return resultsSQL[0][0]
-#         finally:
-#             connection.close()
-
-"""
-def getOdooLastInvoice():
-    webLogger.info(LOG_HEADER+" getOdooLastInvoice ")
-    connection = connect()
-    #id = getOdooAccountInvoiceSeq()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                #sql = "SELECT id,number,move_name,reference from account_invoice where id="+str(id)+";"
-                sql = "select sequence_prefix,name from account_move order by name desc;"
-                webLogger.debug(LOG_HEADER+" "+sql)
-                cursor.execute(sql)
-                resultsSQL = cursor.fetchall()
-                m = re.match(resultsSQL[0][0]+"(\d+)", resultsSQL[0][1])
-                if m:
-                    return m.group(1),resultsSQL[0][0]
-        finally:
-            connection.close()
-
-def getNameForInvoice():
-    webLogger.info(LOG_HEADER+" getNameForInvoice ")
-    (lastnum,prefix) = getOdooLastInvoice()
-    num = int(lastnum)+1
-    return prefix+'{:0>5}'.format(num)
-"""
-
 def createOdooAdhs(email, infos):
     webLogger.info(LOG_HEADER+" createOdooAdhs")
     for key in infos:
@@ -402,34 +360,6 @@ def createMembership(partner_id, amount):
         })
         return membership_line
 
-"""
-def updateMembershipLine(membership_id, infos):
-    webLogger.info(LOG_HEADER+" updateMembershipLine")
-    connection = connect()
-    if (connection != None):
-        try:
-            with connection.cursor() as cursor:
-                if infos is not None:
-                    for key in infos:
-                        if isinstance(infos[key], str):
-                            infos[key] = infos[key].replace("'", "''")
-                    sql = "UPDATE membership_membership_line SET "
-                    i=1
-                    for key in infos:
-                        if (i < len(infos)):
-                            sql += key+"='"+str(infos[key])+"'," 
-                        else:
-                            sql += key+"='"+str(infos[key])+"' "
-                        i=i+1
-                    sql += "WHERE id='"+str(membership_id)+"';"
-                    webLogger.debug(LOG_HEADER+" "+sql)
-                    cursor.execute(sql)
-                    connection.commit()
-                    return cursor.lastrowid
-        finally:
-            connection.close()
-"""
-
 @app.route('/json/', methods=['POST'])
 @require_appkey
 def put_user():
@@ -461,24 +391,6 @@ def getAssos():
     filters = request.args.to_dict()
     assos = getOdooAssos(filters)
     return assos
-
-"""
-@app.route('/getAccountInvoiceSeq', methods=['GET'])
-@require_appkey
-@swag_from("api/getAccountInvoiceSeq.yml")
-def getAccountInvoiceSeq():
-    webLogger.info(LOG_HEADER + '[/getAccountInvoiceSeq] GET')
-    ref = getOdooAccountInvoiceSeq()
-    return jsonify(ref)
-
-@app.route('/getLastInvoice', methods=['GET'])
-@require_appkey
-@swag_from("api/getLastInvoice.yml")
-def getLastInvoice():
-    webLogger.info(LOG_HEADER + '[/getLastInvoice] GET')
-    infos = getOdooLastInvoice()
-    return jsonify(infos)
-"""
 
 @app.route('/getFreeRef', methods=['GET'])
 @require_appkey
@@ -539,29 +451,6 @@ def postMembership():
     partner_id = getOdooAdhId(json_data['email'])
     createMembership(partner_id, json_data['amount'])
     return "200"
-
-"""
-@app.route('/postMembershipCompl', methods=['POST'])
-@require_appkey
-@swag_from("api/postMembershipCompl.yml")
-def postMembershipCompl():
-    webLogger.info(LOG_HEADER + '[/postMembershipCompl] POST')
-    required_args = {
-        "email",
-        "name",
-        "amount"
-    }
-    json_data = request.get_json(force=True)
-    for arg in required_args:
-        if arg not in json_data:
-            webLogger.error(LOG_HEADER + '[/postMembershipCompl] expected data not found : '+arg)
-            return "404"
-    print("test3")
-    partner_id = getOdooAdhId(json_data['email'])
-    invoice_id = createAccountInvoice(partner_id, json_data['amount'], json_data['name'])
-    account_invoice_line = createAccountInvoiceLineAdhCompl(partner_id, json_data['amount'], invoice_id)
-    return "200"
-"""
 
 addr = '0.0.0.0', 80
 serverweb = wsgi.Server(addr, app)

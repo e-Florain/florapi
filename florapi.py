@@ -511,6 +511,7 @@ def getAdhpros():
         "membership_state": "",
         "account_cyclos": "",
         "prvlt_sepa": "",
+        "currency_exchange_office": "",
         "write_date": ""
     }
     list_adhpros = []

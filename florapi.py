@@ -184,6 +184,20 @@ def getOdooMemberships(partner):
         finally:
             connection.close()
 
+def getOdooInvoices(partner):
+    webLogger.info(LOG_HEADER+" getOdooInvoices")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * from account_invoice where partner_id="+partner
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL
+        finally:
+            connection.close()
+
 def getFreeOdooRef():
     webLogger.info(LOG_HEADER+" getFreeOdooRef")
     connection = connect()
@@ -625,6 +639,15 @@ def getMemberships():
     args = request.args.to_dict()
     memberships = getOdooMemberships(args['partner'])
     return jsonify(memberships)
+
+@app.route('/getInvoices', methods=['GET'])
+@require_appkey
+@swag_from("api/getInvoices.yml")
+def getInvoices():
+    webLogger.info(LOG_HEADER + '[/getInvoices] GET')
+    args = request.args.to_dict()
+    invoices = getOdooInvoices(args['partnerid'])
+    return jsonify(invoices)
 
 @app.route('/postAdhs', methods=['POST'])
 @require_appkey

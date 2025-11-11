@@ -190,7 +190,8 @@ def getOdooInvoices(partner):
     if (connection != None):
         try:
             with connection.cursor() as cursor:
-                sql = "SELECT * from account_invoice where partner_id="+partner
+                sql = "SELECT * from account_invoice inner join account_invoice_line ON account_invoice.id=account_invoice_line.invoice_id where account_invoice.partner_id="+partner
+                #sql = "SELECT * from account_invoice where partner_id="+partner
                 webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 resultsSQL = cursor.fetchall()

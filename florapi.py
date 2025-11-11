@@ -176,7 +176,7 @@ def getOdooMemberships(partner):
     if (connection != None):
         try:
             with connection.cursor() as cursor:
-                sql = "SELECT * from membership_membership_line where partner="+partner
+                sql = "SELECT * from membership_membership_line inner join account_invoice_line ON membership_membership_line.account_invoice_line=account_invoice_line.id inner join account_invoice on account_invoice.id=account_invoice_line.invoice_id where partner="+partner
                 webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 resultsSQL = cursor.fetchall()

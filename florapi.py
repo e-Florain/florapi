@@ -639,7 +639,7 @@ def getFreeRef():
 def getMemberships():
     webLogger.info(LOG_HEADER + '[/getMemberships] GET')
     args = request.args.to_dict()
-    memberships = getOdooMemberships(args['partner'])
+    memberships = getOdooMemberships(args['partnerid'])
     return jsonify(memberships)
 
 @app.route('/getInvoices', methods=['GET'])

@@ -1,8 +1,10 @@
 import sys
+import re
 import os
 import requests
 import json
 import config as cfg
+import configsync as cfgs
 from datetime import datetime
 
 # --- CONFIGURATION à adapter ---
@@ -28,12 +30,15 @@ def create_adh(env, infos):
     print(f"Adhérent créé : {partner.name} (ID {partner.id})")
     return partner
 
-def create_invoice(env, partner, price, invoice_date):
+def create_invoice_adh(env, name, partner, price, invoice_date, state):
     product = env['product.product'].search([('name', '=', 'Adh')], limit=1)
 
     # Créer une facture simulant l’adhésion (si module "account" activé)
     invoice = env['account.move'].create({
+        # a tester
+        'name': name,
         'partner_id': partner.id,
+        'state': 'draft',
         'move_type': 'out_invoice',
         'invoice_date': invoice_date,
         'invoice_line_ids': [(0, 0, {
@@ -44,7 +49,66 @@ def create_invoice(env, partner, price, invoice_date):
     })
 
     # Valider la facture (optionnel)
+    invoice.action_post()    
+    return invoice
+
+def create_invoice_dev(env, name, partner, price, invoice_date, state, invoicelines, payments):
+    #invoice = ""
+    invoice_lines = []
+    for invoiceline in invoicelines:
+        if (invoiceline[1] == "[Adh] Adh"):
+            product = env['product.product'].search([('name', '=', 'Adh')], limit=1)
+        else:
+            product = env['product.product'].search([('name', '=', invoiceline[1])], limit=1)
+        invoice_lines.append(
+            (0, 0, {
+                'product_id': product.id,
+                'quantity': invoiceline[12],
+                'price_unit': invoiceline[10],
+            })
+        )
+    #print(invoice_lines)
+    print()
+    #product = env['product.product'].search([('name', '=', 'Contribution de développement')], limit=1)
+
+    #Créer une facture 
+    invoice = env['account.move'].create({
+        'name': name,
+        'partner_id': partner.id,
+        'move_type': 'out_invoice',
+        'invoice_date': invoice_date,
+        'invoice_line_ids': invoice_lines
+    })
+
+    # Valider la facture (optionnel)
     invoice.action_post()
+
+    if (state == "paid"):
+        for payment in payments:
+            print(payment)
+            journal_name = payment[28]
+            payment_date = datetime.strptime(payment[14], "%a, %d %b %Y %H:%M:%S %Z")
+            print(payment_date)
+            amount = payment[12]
+            print(amount)
+            # Chercher le bon journal
+            if (journal_name == "Banque"):
+                journal = env['account.journal'].search([('name', '=', "Bank")], limit=1)
+            else:
+                journal = env['account.journal'].search([('name', '=', journal_name)], limit=1)
+            print(journal.id)
+            # 3. Payer la facture
+            payment_register = env['account.payment.register'].with_context(
+                active_model='account.move',
+                active_ids=invoice.ids,
+            ).create({
+                'payment_date': payment_date,
+                'journal_id': journal.id,
+                'amount': amount
+            })
+            #print (payment_register)
+            payment_register.action_create_payments()
+
     return invoice
 
 def create_membership(env, partner, invoice, date1, date2):
@@ -60,7 +124,6 @@ def create_membership(env, partner, invoice, date1, date2):
         'date_from': date1,
         'date_to': date2,
     })    
-
 
 def get_memberships(partnerid):
     headers = {'x-api-key': API_KEY, 'Content-type': 'application/json', 'Accept': 'text/plain'}
@@ -85,7 +148,7 @@ def create_oldodoo_adhpro(env):
             'email': result['email'],
             'contact_email': result['email'],
             'phone': result['phone'],
-            'account_cyclos': 't',
+            'account_cyclos': result['account_cyclos'],
             'street': result['street'],
             'zip': result['zip'],
             'city': result['city'],
@@ -99,9 +162,77 @@ def create_oldodoo_adhpro(env):
         memberships = get_memberships(result['id'])
         for membership in memberships:
             date1 = datetime.strptime(membership[3], "%a, %d %b %Y %H:%M:%S %Z")
-            date2 = datetime.strptime(membership[4], "%a, %d %b %Y %H:%M:%S %Z")          
-            invoice = create_invoice(env, partner, membership[7], date1)
+            date2 = datetime.strptime(membership[4], "%a, %d %b %Y %H:%M:%S %Z")
+            number = membership[47]
+            invoice = create_invoice_adh(env, number, partner, membership[7], date1, 'paid')
             membership = create_membership(env, partner, invoice, date1, date2)
+
+def get_newid_from_mail(env, email):
+    filters2 = [('email', '=', email)]
+    partner = env['res.partner'].search(filters2, limit=1)
+    return partner
+
+def get_old_adh():
+    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
+    resp = requests.get(cfgs.oldapi['url']+'/getAdhs', params={}, headers=headers, verify=False)
+    resultadhs = json.loads(resp.text)
+    return resultadhs
+
+def get_old_adhpro():
+    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
+    resp = requests.get(cfgs.oldapi['url']+'/getAdhpros', params={}, headers=headers, verify=False)
+    resultadhs = json.loads(resp.text)
+    return resultadhs
+
+def get_invoices(env, partnerid):
+    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
+    resp = requests.get(cfgs.oldapi['url']+'/getInvoices', params={'partnerid':partnerid}, headers=headers, verify=False)
+    invoices = json.loads(resp.text)
+    return invoices
+
+def get_invoice_lines(env, invoiceid):
+    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
+    resp = requests.get(cfgs.oldapi['url']+'/getInvoiceLines', params={'invoiceid':invoiceid}, headers=headers, verify=False)
+    invoicelines = json.loads(resp.text)
+    return invoicelines
+
+def get_invoice_payments(env, ref):
+    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
+    resp = requests.get(cfgs.oldapi['url']+'/getPayments', params={'ref':ref}, headers=headers, verify=False)
+    payments = json.loads(resp.text)
+    return payments
+
+def sync_invoices(env):
+    adhs = get_old_adhpro()
+    for adh in adhs:
+        payments = []
+        #print("OLD ID : "+str(adh['id']))
+        newpartner = get_newid_from_mail(env, adh['email'])
+        #print("NEW ID : "+str(newid))
+        invoices = get_invoices(env, adh['id'])
+        for invoice in invoices:
+            print(adh['name'])
+            invoicelines = get_invoice_lines(env, invoice[0])
+            
+            date1 = datetime.strptime(invoice[13], "%a, %d %b %Y %H:%M:%S %Z")
+            date2 = datetime.strptime(invoice[14], "%a, %d %b %Y %H:%M:%S %Z")
+            number = invoice[7]
+            amount = invoice[24]
+            state = invoice[11]
+            if (state == "open"):
+                state = "not_paid"
+            ref = invoice[9]
+            print(ref)
+            if (ref != None):
+                payments = get_invoice_payments(env, ref)
+            print(state)
+            print(number)
+            # A adapter avec une nvelle fonction pour contribution de dev
+            invoice = create_invoice_dev(env, number, newpartner, amount, date1, state, invoicelines, payments)
+    
+    #results = json.loads(resp.text)
+    #for result in results:
+    
 
 def create_oldodoo_adh(env):
     headers = {'x-api-key': API_KEY, 'Content-type': 'application/json', 'Accept': 'text/plain'}
@@ -154,7 +285,7 @@ def create_oldodoo_adh(env):
         for membership in memberships:
             date1 = datetime.strptime(membership[3], "%a, %d %b %Y %H:%M:%S %Z")
             date2 = datetime.strptime(membership[4], "%a, %d %b %Y %H:%M:%S %Z")          
-            invoice = create_invoice(env, partner, membership[7], date1)
+            invoice = create_invoice_adh(env, partner, membership[7], date1)
             membership = create_membership(env, partner, invoice, date1, date2)
         
 
@@ -177,7 +308,8 @@ def main():
     with registry.cursor() as cr:
         env = api.Environment(cr, SUPERUSER_ID, {})
         #create_oldodoo_adhpro(env)
-        create_oldodoo_adh(env)
+        #create_oldodoo_adh(env)
+        sync_invoices(env)
 
 if __name__ == '__main__':
     main()

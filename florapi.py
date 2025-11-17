@@ -190,9 +190,37 @@ def getOdooInvoices(partner):
     if (connection != None):
         try:
             with connection.cursor() as cursor:
-                sql = "SELECT * from account_invoice inner join account_invoice_line ON account_invoice.id=account_invoice_line.invoice_id inner join account_move ON account_invoice.move_id=account_move.id inner join account_payment ON account_move.ref = account_payment.communication inner join account_journal ON account_payment.journal_id=account_journal.id where account_invoice.partner_id="+partner
-                #sql = "SELECT * from account_invoice inner join account_invoice_line ON account_invoice.id=account_invoice_line.invoice_id inner join account_journal ON account_invoice.journal_id=account_journal.id where account_invoice.partner_id="+partner
-                #sql = "SELECT * from account_invoice where partner_id="+partner
+                sql = "SELECT * from account_invoice inner join account_move ON account_invoice.move_id=account_move.id  where account_invoice.partner_id="+partner
+                #sql = "SELECT * from account_invoice inner join account_move ON account_invoice.move_id=account_move.id inner join account_payment ON account_move.ref = account_payment.communication inner join account_journal ON account_payment.journal_id=account_journal.id where account_invoice.partner_id="+partner
+                #sql = "SELECT * from account_invoice inner join account_invoice_line ON account_invoice.id=account_invoice_line.invoice_id inner join account_move ON account_invoice.move_id=account_move.id inner join account_payment ON account_move.ref = account_payment.communication inner join account_journal ON account_payment.journal_id=account_journal.id where account_invoice.partner_id="+partner
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL
+        finally:
+            connection.close()
+
+def getOdooInvoiceLines(invoice_id):
+    webLogger.info(LOG_HEADER+" getOdooInvoiceLines")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * from account_invoice_line where invoice_id="+invoice_id
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL
+        finally:
+            connection.close()
+
+def getOdooPayments(ref):
+    webLogger.info(LOG_HEADER+" getOdooPayments")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * from account_payment inner join account_journal ON account_payment.journal_id=account_journal.id where communication='"+ref+"'"
                 webLogger.debug(LOG_HEADER+" "+sql)
                 cursor.execute(sql)
                 resultsSQL = cursor.fetchall()
@@ -643,6 +671,15 @@ def getMemberships():
     memberships = getOdooMemberships(args['partnerid'])
     return jsonify(memberships)
 
+@app.route('/getInvoiceLines', methods=['GET'])
+@require_appkey
+@swag_from("api/getInvoiceLines.yml")
+def getInvoiceLines():
+    webLogger.info(LOG_HEADER + '[/getInvoiceLines] GET')
+    args = request.args.to_dict()
+    invoicelines = getOdooInvoiceLines(args['invoiceid'])
+    return jsonify(invoicelines)
+
 @app.route('/getInvoices', methods=['GET'])
 @require_appkey
 @swag_from("api/getInvoices.yml")
@@ -651,6 +688,15 @@ def getInvoices():
     args = request.args.to_dict()
     invoices = getOdooInvoices(args['partnerid'])
     return jsonify(invoices)
+
+@app.route('/getPayments', methods=['GET'])
+@require_appkey
+@swag_from("api/getPayments.yml")
+def getPayments():
+    webLogger.info(LOG_HEADER + '[/getPayments] GET')
+    args = request.args.to_dict()
+    payments = getOdooPayments(args['ref'])
+    return jsonify(payments)
 
 @app.route('/postAdhs', methods=['POST'])
 @require_appkey

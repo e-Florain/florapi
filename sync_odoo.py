@@ -210,6 +210,59 @@ def create_oldodoo_adhpro(env, allcat):
         #     invoice = create_invoice_adh(env, number, partner, membership[7], date1, 'paid')
         #     membership = create_membership(env, partner, invoice, date1, date2)
 
+def create_oldodoo_adh(env):
+    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
+    resp = requests.get(cfgs.oldapi['url']+'/getAssos', params={}, headers=headers, verify=False)
+    resultassos = json.loads(resp.text)
+    assos = {}
+    defaultasso = ""
+    for resultasso in resultassos:
+        assos[resultasso['id']] = get_new_asso_id(env,resultasso['email'])
+        if (resultasso['email'] == 'cyclos@florain.fr'):
+            defaultasso = get_new_asso_id(env,resultasso['email'])
+    #print(assos)
+
+    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
+    resp = requests.get(cfgs.oldapi['url']+'/getAdhs', params={}, headers=headers, verify=False)
+    resultadhs = json.loads(resp.text)
+    for result in resultadhs:
+        if (result['firstname'] == None):
+            firstname = ""
+        else:
+            firstname = result['firstname']
+        if (result['lastname'] == None):
+            lastname = ""
+        else:
+            lastname = result['lastname']
+        print(firstname+" "+lastname)
+        infos = {
+            'name': firstname+" "+lastname,
+            'email': result['email'],
+            'phone': result['phone'],
+            'account_cyclos': result['account_cyclos'],
+            'street': result['street'],
+            'zip': result['zip'],
+            'city': result['city'],
+            'ref': result['ref'],
+            'is_company': False,
+            'prvlt_sepa': result['prvlt_sepa'],
+            'accept_newsletter': result['accept_newsletter'],
+            'comment': result['comment'],
+            'changeeuros': result['changeeuros']
+        }
+        if (result['orga_choice'] in assos):
+            infos['orga_choice'] = assos[result['orga_choice']]
+        else:
+            infos['orga_choice'] = defaultasso
+        partner = create_adh(env, infos)
+        create_invoices_for_adh(env, result['id'], partner)
+        # memberships = get_memberships(result['id'])
+        # for membership in memberships:
+        #     date1 = datetime.strptime(membership[3], "%a, %d %b %Y %H:%M:%S %Z")
+        #     date2 = datetime.strptime(membership[4], "%a, %d %b %Y %H:%M:%S %Z")          
+        #     invoice = create_invoice_adh(env, partner, membership[7], date1)
+        #     membership = create_membership(env, partner, invoice, date1, date2)
+
 # def get_newid_from_mail(env, email):
 #     filters2 = [('email', '=', email)]
 #     partner = env['res.partner'].search(filters2, limit=1)
@@ -298,61 +351,6 @@ def create_invoices_for_adh(env, adhid, newpartner):
 #             invoice = create_invoice(env, number, newpartner, amount, date1, state, invoicelines, payments)
 #     #results = json.loads(resp.text)
 #     #for result in results:
-
-def create_oldodoo_adh(env):
-    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
-    resp = requests.get(cfgs.oldapi['url']+'/getAssos', params={}, headers=headers, verify=False)
-    resultassos = json.loads(resp.text)
-    assos = {}
-    defaultasso = ""
-    for resultasso in resultassos:
-        assos[resultasso['id']] = get_new_asso_id(env,resultasso['email'])
-        if (resultasso['email'] == 'cyclos@florain.fr'):
-            defaultasso = get_new_asso_id(env,resultasso['email'])
-    #print(assos)
-
-    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
-    resp = requests.get(cfgs.oldapi['url']+'/getAdhs', params={}, headers=headers, verify=False)
-    resultadhs = json.loads(resp.text)
-    for result in resultadhs:
-        #print(result)
-        #print(result['orga_choice'])
-        #print(result)
-        if (result['firstname'] == None):
-            firstname = ""
-        else:
-            firstname = result['firstname']
-        if (result['lastname'] == None):
-            lastname = ""
-        else:
-            lastname = result['lastname']
-        print(firstname+" "+lastname)
-        infos = {
-            'name': firstname+" "+lastname,
-            'email': result['email'],
-            'phone': result['phone'],
-            'account_cyclos': result['account_cyclos'],
-            'street': result['street'],
-            'zip': result['zip'],
-            'city': result['city'],
-            'ref': result['ref'],
-            'is_company': False,
-            'prvlt_sepa': result['prvlt_sepa'],
-            'accept_newsletter': result['accept_newsletter'],
-            'comment': result['comment'],
-            'changeeuros': result['changeeuros']
-        }
-        if (result['orga_choice'] in assos):
-            infos['orga_choice'] = assos[result['orga_choice']]
-        else:
-            infos['orga_choice'] = defaultasso
-        partner = create_adh(env, infos)
-        memberships = get_memberships(result['id'])
-        for membership in memberships:
-            date1 = datetime.strptime(membership[3], "%a, %d %b %Y %H:%M:%S %Z")
-            date2 = datetime.strptime(membership[4], "%a, %d %b %Y %H:%M:%S %Z")          
-            invoice = create_invoice_adh(env, partner, membership[7], date1)
-            membership = create_membership(env, partner, invoice, date1, date2)
         
 
 def main():
@@ -380,9 +378,9 @@ def main():
         # Second Step - get All Categories
         allcat = get_categories()
         # Third Step - Create Adh pro
-        create_oldodoo_adhpro(env, allcat)
+        #create_oldodoo_adhpro(env, allcat)
         # Fourth Step - Create adh part
-
+        create_oldodoo_adh(env)
         # Fifth Step - Add contacts to adh pro
 
 if __name__ == '__main__':

@@ -228,6 +228,34 @@ def getOdooPayments(ref):
         finally:
             connection.close()
 
+def getOdooPartnerCat():
+    webLogger.info(LOG_HEADER+" getOdooPartnerCat")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * from res_partner_category"
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL
+        finally:
+            connection.close()
+
+def getOdooCategoryByPartner(partnerid):
+    webLogger.info(LOG_HEADER+" getOdooCategoryByPartner")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * from res_partner_res_partner_category_rel where partner_id="+partnerid
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL
+        finally:
+            connection.close()
+
 def getFreeOdooRef():
     webLogger.info(LOG_HEADER+" getFreeOdooRef")
     connection = connect()
@@ -542,6 +570,7 @@ def getAdhpros():
         "account_cyclos": "",
         "prvlt_sepa": "",
         "currency_exchange_office": "",
+        "comment": "",
         "write_date": ""
     }
     list_adhpros = []
@@ -585,6 +614,7 @@ def getAdhs():
         "accept_newsletter": "",
         "changeeuros": "",
         "prvlt_sepa": "",
+        "comment": "",
         "write_date": ""
     }
     list_adhs = []
@@ -697,6 +727,24 @@ def getPayments():
     args = request.args.to_dict()
     payments = getOdooPayments(args['ref'])
     return jsonify(payments)
+
+@app.route('/getPartnerCat', methods=['GET'])
+@require_appkey
+@swag_from("api/getPartnerCat.yml")
+def getPartnerCat():
+    webLogger.info(LOG_HEADER + '[/getPartnerCat] GET')
+    partnercat = getOdooPartnerCat()
+    return jsonify(partnercat)
+
+@app.route('/getCatByPartner', methods=['GET'])
+@require_appkey
+@swag_from("api/getCatByPartner.yml")
+def getCatByPartner():
+    webLogger.info(LOG_HEADER + '[/getCatByPartner] GET')
+    args = request.args.to_dict()
+    partnercat = getOdooCategoryByPartner(args['partnerid'])
+    return jsonify(partnercat)
+
 
 @app.route('/postAdhs', methods=['POST'])
 @require_appkey

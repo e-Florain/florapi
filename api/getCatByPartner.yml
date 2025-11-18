@@ -1,0 +1,24 @@
+summary: "Get Category By Partner"
+description: "Récupère la categorie ou les categories d'un partner"
+produces:
+- "application/json"
+parameters:
+- name: partnerid
+  in: query
+  type: string
+  description: partnerid
+responses:
+  200:
+    description: "Success"
+    schema:
+      type: "object"
+      properties:
+        data:
+          type: "object"
+        status:
+          type: "string"
+        message:
+          type: "string"
+ 
+  400:
+    description: "Same response is for 202, 400"

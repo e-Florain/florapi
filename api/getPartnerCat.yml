@@ -1,0 +1,19 @@
+summary: "Get Partner Category"
+description: "Récupère les catégories (étiquettes) des res_partners"
+produces:
+- "application/json"
+responses:
+  200:
+    description: "Success"
+    schema:
+      type: "object"
+      properties:
+        data:
+          type: "object"
+        status:
+          type: "string"
+        message:
+          type: "string"
+ 
+  400:
+    description: "Same response is for 202, 400"

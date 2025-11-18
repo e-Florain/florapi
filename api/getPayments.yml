@@ -1,0 +1,24 @@
+summary: "Get Payments"
+description: "Récupère les paiements d'une facture"
+produces:
+- "application/json"
+parameters:
+- name: ref
+  in: query
+  type: string
+  description: ref
+responses:
+  200:
+    description: "Success"
+    schema:
+      type: "object"
+      properties:
+        data:
+          type: "object"
+        status:
+          type: "string"
+        message:
+          type: "string"
+ 
+  400:
+    description: "Same response is for 202, 400"

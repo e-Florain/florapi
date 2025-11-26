@@ -614,6 +614,7 @@ def getAdhs():
         "accept_newsletter": "",
         "changeeuros": "",
         "prvlt_sepa": "",
+	"parent_id": "",
         "comment": "",
         "write_date": ""
     }

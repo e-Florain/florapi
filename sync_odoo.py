@@ -30,6 +30,22 @@ def create_adh(env, infos):
     print(f"Adhérent créé : {partner.name} (ID {partner.id})")
     return partner
 
+def add_parent(env, partner, idparent):
+    #partner = env['res.partner'].browse(idpartner)
+    #partner.parent_id = idparent
+    partner.write({
+        'parent_id': idparent
+    })
+
+def add_parents_for_all(env):
+    res = get_oldodoo_adh()
+    for r in res:
+        if (r['parent_id'] != None):
+            nameparent = get_namepro_from_oldid(r['parent_id'])
+            partner = get_partner_from_name(env, r['firstname']+" "+r['lastname'])
+            parent = get_partner_from_name(env, nameparent)
+            add_parent(env, partner, parent.id)
+
 def create_cat(env):
     categories = get_categories()
     # Créer une étiquette CRM
@@ -172,10 +188,31 @@ def get_new_asso_id(env, email):
     partners = env['res.partner'].search(filters2, limit=1)
     return partners.id
 
-def create_oldodoo_adhpro(env, allcat):
+def get_namepro_from_oldid(id):
+    results = get_oldodoo_adhpro()
+    for res in results:
+        if (res['id'] == id):
+            return res['name']
+
+def get_namepart_from_oldid(id):
+    results = get_oldodoo_adh()
+    for res in results:
+        if (res['id'] == id):
+            return res['firstname']+" "+res['lastname']
+
+def get_name_from_id(env, id):
+    filters = [('id', '=', id)]
+    partners = env['res.partner'].search(filters, limit=1)
+    return partners.name
+
+def get_oldodoo_adhpro():
     headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
     resp = requests.get(cfgs.oldapi['url']+'/getAdhpros', params={}, headers=headers, verify=False)
     results = json.loads(resp.text)
+    return results
+
+def create_oldodoo_adhpro(env, allcat):
+    results = get_oldodoo_adhpro
     for result in results:
         infos = {
             'name': result['name'],
@@ -210,6 +247,12 @@ def create_oldodoo_adhpro(env, allcat):
         #     invoice = create_invoice_adh(env, number, partner, membership[7], date1, 'paid')
         #     membership = create_membership(env, partner, invoice, date1, date2)
 
+def get_oldodoo_adh():
+    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
+    resp = requests.get(cfgs.oldapi['url']+'/getAdhs', params={}, headers=headers, verify=False)
+    resultadhs = json.loads(resp.text)
+    return resultadhs
+
 def create_oldodoo_adh(env):
     headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
     resp = requests.get(cfgs.oldapi['url']+'/getAssos', params={}, headers=headers, verify=False)
@@ -221,10 +264,7 @@ def create_oldodoo_adh(env):
         if (resultasso['email'] == 'cyclos@florain.fr'):
             defaultasso = get_new_asso_id(env,resultasso['email'])
     #print(assos)
-
-    headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
-    resp = requests.get(cfgs.oldapi['url']+'/getAdhs', params={}, headers=headers, verify=False)
-    resultadhs = json.loads(resp.text)
+    resultadhs = get_oldodoo_adh(env)
     for result in resultadhs:
         if (result['firstname'] == None):
             firstname = ""
@@ -263,10 +303,15 @@ def create_oldodoo_adh(env):
         #     invoice = create_invoice_adh(env, partner, membership[7], date1)
         #     membership = create_membership(env, partner, invoice, date1, date2)
 
-# def get_newid_from_mail(env, email):
-#     filters2 = [('email', '=', email)]
-#     partner = env['res.partner'].search(filters2, limit=1)
-#     return partner
+def get_partner_from_mail(env, email):
+    filters2 = [('email', '=', email)]
+    partner = env['res.partner'].search(filters2, limit=1)
+    return partner
+
+def get_partner_from_name(env, name):
+    filters2 = [('name', '=', name)]
+    partner = env['res.partner'].search(filters2, limit=1)
+    return partner
 
 def get_old_adh():
     headers = {'x-api-key': cfgs.oldapi['key'], 'Content-type': 'application/json', 'Accept': 'text/plain'}
@@ -376,12 +421,15 @@ def main():
         # First Step - create all Categories
         #create_cat(env)
         # Second Step - get All Categories
-        allcat = get_categories()
+        #allcat = get_categories()
         # Third Step - Create Adh pro
         #create_oldodoo_adhpro(env, allcat)
         # Fourth Step - Create adh part
-        create_oldodoo_adh(env)
+        #create_oldodoo_adh(env)
         # Fifth Step - Add contacts to adh pro
+        add_parents_for_all(env)
+        #print(name)
+        
 
 if __name__ == '__main__':
     main()

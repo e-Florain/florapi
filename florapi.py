@@ -184,7 +184,7 @@ def getOdooMemberships(partner):
         finally:
             connection.close()
 
-ef getOdooMembershipsWithoutInvoice(partner):
+def getOdooMembershipsWithoutInvoice(partner):
     webLogger.info(LOG_HEADER+" getOdooMembershipsWithoutInvoice")
     connection = connect()
     if (connection != None):
@@ -719,7 +719,7 @@ def getMemberships():
 @app.route('/getMembershipsWithoutInvoice', methods=['GET'])
 @require_appkey
 @swag_from("api/getMembershipsWithoutInvoice.yml")
-def getMemberships():
+def getMembershipsWithoutInvoice():
     webLogger.info(LOG_HEADER + '[/getMembershipsWithoutInvoice] GET')
     args = request.args.to_dict()
     memberships = getOdooMembershipsWithoutInvoice(args['partnerid'])

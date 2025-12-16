@@ -184,6 +184,20 @@ def getOdooMemberships(partner):
         finally:
             connection.close()
 
+ef getOdooMembershipsWithoutInvoice(partner):
+    webLogger.info(LOG_HEADER+" getOdooMembershipsWithoutInvoice")
+    connection = connect()
+    if (connection != None):
+        try:
+            with connection.cursor() as cursor:
+                sql = "SELECT * from membership_membership_line where partner="+partner
+                webLogger.debug(LOG_HEADER+" "+sql)
+                cursor.execute(sql)
+                resultsSQL = cursor.fetchall()
+                return resultsSQL
+        finally:
+            connection.close()
+
 def getOdooInvoices(partner):
     webLogger.info(LOG_HEADER+" getOdooInvoices")
     connection = connect()
@@ -700,6 +714,15 @@ def getMemberships():
     webLogger.info(LOG_HEADER + '[/getMemberships] GET')
     args = request.args.to_dict()
     memberships = getOdooMemberships(args['partnerid'])
+    return jsonify(memberships)
+
+@app.route('/getMembershipsWithoutInvoice', methods=['GET'])
+@require_appkey
+@swag_from("api/getMembershipsWithoutInvoice.yml")
+def getMemberships():
+    webLogger.info(LOG_HEADER + '[/getMembershipsWithoutInvoice] GET')
+    args = request.args.to_dict()
+    memberships = getOdooMembershipsWithoutInvoice(args['partnerid'])
     return jsonify(memberships)
 
 @app.route('/getInvoiceLines', methods=['GET'])

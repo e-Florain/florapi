@@ -175,7 +175,6 @@ def getOdooAdhs(filters):
                 filters2.append(('name', 'like', '%'+y.upper()+'%'))
             else:
                 filters2.append((x, '=', y))
-        print(filters2)
         partners = env['res.partner'].search(filters2)
         
         #data = partners.read(['name'])

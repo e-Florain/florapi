@@ -133,7 +133,7 @@ def getOdooAdhpros(filters):
             elif (y=="'f'"):
                 filters2.append((x, '=', False))
             else:
-                filters2.append((x, 'like', y.upper()))
+                filters2.append((x, 'like', y))
         partners = env['res.partner'].search(filters2)
 
         data = partners.read([
@@ -174,7 +174,8 @@ def getOdooAdhs(filters):
             if ((x == "lastname") or (x == "firstname")):
                 filters2.append(('name', 'like', '%'+y.upper()+'%'))
             else:
-                filters2.append((x, '=', y.upper()))
+                filters2.append((x, '=', y))
+        print(filters2)
         partners = env['res.partner'].search(filters2)
         
         #data = partners.read(['name'])

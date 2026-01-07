@@ -265,10 +265,10 @@ def createOdooAdhs(email, infos):
     for key in infos:
         if isinstance(infos[key], str):
             infos[key] = infos[key].replace("'", "''")
-    name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
+    #name = infos['firstname'][0].upper()+infos['firstname'][1:]+" "+infos['lastname'].upper()
     
     datas = {
-        'name': name,
+        'name': infos['name'],
         'email': email,
         'phone': infos['phone'],
         'account_cyclos': infos['account_cyclos'],
@@ -406,8 +406,7 @@ def getFreeRef():
 def postAdhs():
     webLogger.info(LOG_HEADER + '[/postAdhs] POST')
     required_args = {
-        "firstname",
-        "lastname",
+        "name",
         "phone",
         "ref",
         "account_cyclos",

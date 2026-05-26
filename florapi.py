@@ -358,6 +358,10 @@ def createMembership(partner_id, amount):
             'date_from': date1,
             'date_to': date2,
         })
+        # Confirmer la facture
+        if invoice and invoice.state == 'draft':
+            invoice.action_post()
+
         return membership_line
 
 @app.route('/json/', methods=['POST'])
